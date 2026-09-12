@@ -1,3 +1,22 @@
+# Build output
+build/
+out/
+cmake-build-*/
+CMakeFiles/
+CMakeCache.txt
+cmake_install.cmake
+Makefile
+
+# Qt and CMake user files
+*.user
+*.user.*
+CMakeLists.txt.user
+
+# IDE folders
+.vscode/
+.vs/
+.idea/
+
 # Private local application data
 *.sqlite
 *.sqlite-shm
