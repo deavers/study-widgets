@@ -15,6 +15,10 @@ public:
     explicit PomodoroWidget(QWidget* parent = nullptr);
     ~PomodoroWidget() override;
 
+    bool selectCategoryById(
+        const QString& categoryId
+    );
+
 private:
     enum class SessionState
     {
@@ -24,6 +28,7 @@ private:
     };
 
     void setDurationMinutes(int minutes);
+    void reloadCategories();
 
     void startOrResumeSession();
     void pauseSession();

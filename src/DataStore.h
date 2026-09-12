@@ -1,16 +1,16 @@
 #pragma once
 
-#include <QDateTime>
-#include <QString>
-#include <QList>
-#include <QtGlobal>
 #include <QDate>
+#include <QDateTime>
+#include <QList>
+#include <QString>
+#include <QtGlobal>
 
-struct StudySession
-{
+struct StudySession {
     qint64 id = -1;
 
     QString category;
+    QString categoryId;
 
     QDateTime startedAt;
     QDateTime finishedAt;
@@ -21,8 +21,17 @@ struct StudySession
     QString note;
 };
 
-class DataStore
-{
+struct StudyCategory {
+    QString id;
+    QString name;
+    QString type;
+    QString color;
+
+    bool archived = false;
+    int sortOrder = 0;
+};
+
+class DataStore {
 public:
     static DataStore& instance();
 
@@ -42,11 +51,20 @@ public:
         const QDate& date
     );
 
+    QList<StudyCategory> studyCategories(
+        bool includeArchived = false
+    );
+
+    bool syncStudyCategories(
+        const QList<StudyCategory>& categories
+    );
+
 private:
     DataStore() = default;
 
     bool ensureSchema();
     bool createSchemaVersionOne();
+    bool migrateSchemaV1ToV2();
 
     bool openDatabase();
     void setError(const QString& error);

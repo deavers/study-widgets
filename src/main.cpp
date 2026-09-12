@@ -3,6 +3,7 @@
 
 #include "ControlPanel.h"
 #include "DataStore.h"
+#include "CategoryConfigLoader.h"
 
 int main(int argc, char* argv[]) 
 {
@@ -23,6 +24,19 @@ int main(int argc, char* argv[])
         );
 
         return 1;
+    }
+
+    QString categoryConfigError;
+
+    if (!CategoryConfigLoader::importLocalCategories(
+        &categoryConfigError
+    )) {
+        QMessageBox::warning(
+            nullptr,
+            "StudyWidgets category configuration",
+            "Could not import local categories.\n\n" +
+            categoryConfigError
+        );
     }
 
     ControlPanel controlPanel;

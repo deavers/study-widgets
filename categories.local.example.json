@@ -1,0 +1,37 @@
+{
+  "$schema": "studywidgets.categories.v1",
+  "categories": [
+    {
+      "id": "free-study",
+      "name": "Free Study",
+      "type": "general",
+      "color": "#5B8DEF",
+      "sortOrder": 0,
+      "archived": false
+    },
+    {
+      "id": "subject-example-1",
+      "name": "Example Subject 1",
+      "type": "subject",
+      "color": "#14B8A6",
+      "sortOrder": 10,
+      "archived": false
+    },
+    {
+      "id": "subject-example-2",
+      "name": "Example Subject 2",
+      "type": "subject",
+      "color": "#8B5CF6",
+      "sortOrder": 20,
+      "archived": false
+    },
+    {
+      "id": "ctf-practice",
+      "name": "CTF Practice",
+      "type": "project",
+      "color": "#E11D48",
+      "sortOrder": 30,
+      "archived": false
+    }
+  ]
+}

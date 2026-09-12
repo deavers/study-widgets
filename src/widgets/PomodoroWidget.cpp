@@ -9,41 +9,8 @@
 #include <QHBoxLayout>
 #include <QLabel>
 #include <QPushButton>
-#include <QSettings>
 #include <QTimer>
 #include <QVBoxLayout>
-
-namespace {
-
-QStringList defaultCategories()
-{
-    return
-    {
-        "Free study",
-        "University",
-        "Cybersecurity",
-        "Digital Forensics",
-        "Programming",
-        "English"
-    };
-}
-
-QStringList loadCategories()
-{
-    QSettings settings;
-
-    const QStringList savedCategories =
-        settings.value("pomodoro/categories").toStringList();
-
-    if (!savedCategories.isEmpty())
-    {
-        return savedCategories;
-    }
-
-    return defaultCategories();
-}
-
-}
 
 PomodoroWidget::PomodoroWidget(QWidget* parent)
     : WidgetBase("pomodoro", parent) {
@@ -100,7 +67,9 @@ PomodoroWidget::PomodoroWidget(QWidget* parent)
     rootLayout->setContentsMargins(24, 20, 24, 20);
     rootLayout->setSpacing(10);
 
-    auto* titleLabel = new QLabel("рџЌ… Pomodoro");
+    auto* titleLabel = new QLabel(
+        QString::fromUtf8("\xF0\x9F\x8D\x85 Pomodoro")
+    );
     QFont titleFont = titleLabel->font();
     titleFont.setPointSize(16);
     titleFont.setBold(true);
@@ -135,7 +104,7 @@ PomodoroWidget::PomodoroWidget(QWidget* parent)
     );
 
     m_categoryComboBox = new QComboBox();
-    m_categoryComboBox->addItems(loadCategories());
+    reloadCategories();
 
     m_startPauseButton = new QPushButton("Start");
     m_stopSaveButton = new QPushButton("Stop and save");
@@ -241,6 +210,61 @@ PomodoroWidget::~PomodoroWidget()
     }
 }
 
+void PomodoroWidget::reloadCategories() {
+    const QString previousCategoryId =
+        m_categoryComboBox->currentData().toString();
+
+    m_categoryComboBox->clear();
+
+    const QList<StudyCategory> categories =
+        DataStore::instance().studyCategories();
+
+    for (const StudyCategory& category : categories) {
+        m_categoryComboBox->addItem(
+            category.name,
+            category.id
+        );
+    }
+
+    const int previousIndex =
+        m_categoryComboBox->findData(previousCategoryId);
+
+    if (previousIndex >= 0) {
+        m_categoryComboBox->setCurrentIndex(previousIndex);
+    }
+
+    if (m_categoryComboBox->count() == 0) {
+        m_categoryComboBox->addItem(
+            "Free Study",
+            "free-study"
+        );
+
+        m_statusLabel->setText(
+            "No categories were found. Using Free Study."
+        );
+    }
+}
+
+bool PomodoroWidget::selectCategoryById(
+    const QString& categoryId
+) {
+    const int categoryIndex =
+        m_categoryComboBox->findData(categoryId);
+
+    if (categoryIndex < 0) {
+        return false;
+    }
+
+    m_categoryComboBox->setCurrentIndex(categoryIndex);
+
+    m_statusLabel->setText(
+        "Selected category: " +
+        m_categoryComboBox->currentText()
+    );
+
+    return true;
+}
+
 void PomodoroWidget::setDurationMinutes(int minutes)
 {
     if (m_state != SessionState::Idle)
@@ -336,7 +360,10 @@ void PomodoroWidget::stopAndSaveSession(bool completed)
     StudySession session;
 
     session.category =
-        m_categoryComboBox->currentText();
+    m_categoryComboBox->currentText();
+
+    session.categoryId =
+        m_categoryComboBox->currentData().toString();
 
     session.startedAt = m_sessionStartedAt;
     session.finishedAt = QDateTime::currentDateTime();

@@ -14,6 +14,8 @@ add_executable(StudyWidgets
     src/WidgetRegistry.h
     src/DataStore.h
     src/DataStore.cpp
+    src/CategoryConfigLoader.h
+    src/CategoryConfigLoader.cpp
     src/ControlPanel.h
     src/ControlPanel.cpp
     src/widgets/WelcomeWidget.h

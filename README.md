@@ -184,6 +184,28 @@ The database is currently stored in the Windows application-data directory:
 
 No study data is sent to a cloud service.
 
+### Private Category Configuration
+
+Personal subjects are not required in source code or public GitHub history.
+
+StudyWidgets loads private categories from:
+
+```text
+%APPDATA%\deavers\StudyWidgets\config\categories.local.json
+```
+
+The local configuration file is not committed to Git.
+
+A public generic example file documents the expected JSON structure:
+
+```text
+categories.local.example.json
+```
+
+Each category contains a stable `id`, display `name`, `type`, dashboard
+`color`, `sortOrder` and archive state. The stable ID allows users to rename
+a category without splitting historical Pomodoro statistics.
+
 ### Pomodoro Widget
 
 `PomodoroWidget` is the first data-producing StudyWidgets widget.

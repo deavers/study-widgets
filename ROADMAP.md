@@ -92,7 +92,21 @@ Legend:
 - [x] Save active Pomodoro session during application exit
 - [x] Local SQLite session persistence
 - [x] Daily duration summary from SQLite
+- [x] SQLite-backed category IDs
+- [x] Category persistence independent from visible names
+- [x] Private local JSON category configuration
+- [x] CategoryConfigLoader JSON validation
+- [x] Local category synchronization into SQLite
+- [x] Archive categories removed from local configuration
+- [x] Pomodoro categories loaded from SQLite
+- [x] Future-ready `selectCategoryById()` API for Subject Board
 - [ ] Editable subject/category management interface
+- [ ] Shared selected-category state between widgets
+- [ ] Subject Board click selects a Pomodoro category
+- [ ] Subject Board restores hidden Pomodoro widget
+- [ ] Subject Board never auto-starts a Pomodoro timer
+- [ ] Pending category selection for the next session
+- [ ] Safe behavior when Pomodoro is already running
 - [ ] Custom category colors and icons
 - [ ] Undo the last recorded session
 - [ ] Restore the last undone session
@@ -140,6 +154,10 @@ Legend:
 ## v0.7 — Statistics and Focus Modes
 
 - [ ] Study statistics widget
+- [ ] Compact Subject Board widget
+- [ ] Clickable subject rows
+- [ ] Today / week / month subject views
+- [ ] Subject Board → Pomodoro handoff
 - [ ] Day / week / month views
 - [ ] Per-subject study-minute graph
 - [ ] Weekly comparison
@@ -182,6 +200,10 @@ Legend:
 - [x] Parameterized SQLite queries
 - [x] Input validation before study-session writes
 - [x] SQLite foreign-key enforcement
+- [x] Private local category configuration outside Git repository
+- [x] Generic public category example file
+- [x] Local JSON schema validation for category configuration
+- [x] No real university subjects required in public source code
 - [ ] Threat model document using STRIDE or similar methodology
 - [ ] Local data classification: public / private / sensitive
 - [ ] Data-retention and deletion policy
