@@ -6,8 +6,10 @@
 #include <QSettings>
 #include <QWidget>
 
-class WidgetBase : public QWidget
-{
+#include <functional>
+#include <utility>
+
+class WidgetBase : public QWidget {
 public:
     explicit WidgetBase(const QString& widgetId, QWidget* parent = nullptr)
         : QWidget(parent),
@@ -24,7 +26,19 @@ public:
         restorePosition();
     }
 
+    void setHideHandler(std::function<void()> handler) {
+        m_hideHandler = std::move(handler);
+    }
+
 protected:
+    void hideToTray() {
+        hide();
+
+        if (m_hideHandler) {
+            m_hideHandler();
+        }
+    }
+
     void paintEvent(QPaintEvent* event) override {
         Q_UNUSED(event);
 
@@ -103,4 +117,6 @@ private:
     QString m_widgetId;
     QPoint m_dragOffset;
     bool m_isDragging = false;
+
+    std::function<void()> m_hideHandler;
 };

@@ -1,6 +1,7 @@
 # StudyWidgets Roadmap
 
 A living project checklist and long-term memory.
+
 Every agreed feature belongs here before implementation starts.
 
 Legend:
@@ -12,42 +13,56 @@ Legend:
 ## v0.1 — Foundation
 
 - [x] Public GitHub repository
-- [x] English README, roadmap, .gitignore and MIT license
+- [x] English README, roadmap, `.gitignore` and MIT license
 - [x] CMake project skeleton
 - [x] Qt 6.11.2 + MinGW 13.1.0 build environment on Windows
 - [x] First Qt application build and launch
 - [x] `WidgetBase`: frameless rounded desktop card
 - [x] Mouse drag-to-move behavior
-- [x] QSettings position persistence
+- [x] QSettings widget-position persistence
 - [x] `WelcomeWidget`: first working widget
-- [x] Explicit minimize and application-exit controls
 - [x] Plugin-style `WidgetRegistry`
-- [~] Basic code cleanup and architecture documentation
+- [x] Registry-based widget creation
+- [x] Basic project architecture documentation
 
-## v0.2 — Control Center
+## v0.2 — Control Center and Tray
 
-- [ ] Control Panel main window
-- [ ] Read all widgets from `WidgetRegistry`
-- [ ] Enable / disable widgets through checkboxes
-- [ ] Save enabled widget state with QSettings
-- [ ] System tray icon
-- [ ] Restore hidden widgets from the tray
-- [ ] Explicit `Exit StudyWidgets` action in tray menu
-- [ ] Distinguish widget close from application exit
-- [ ] Widget settings button and per-widget configuration dialog
+- [x] Control Panel main window
+- [x] Read registered widgets from `WidgetRegistry`
+- [x] Enable / disable widgets through checkboxes
+- [x] Save widget enabled state with QSettings
+- [x] Windows System Tray icon
+- [x] Tray context menu
+- [x] Restore widgets from tray
+- [x] Hide all active widgets
+- [x] Close Control Panel to tray
+- [x] Explicit `Exit StudyWidgets` tray action
+- [x] Widget hide-to-tray callback
+- [x] Basic Game Mode
+- [x] Game Mode button state: ON / OFF
+- [x] Synchronized Game Mode tray checkbox
+- [ ] Start minimized to tray
+- [ ] Per-widget settings button
 - [ ] Multi-instance widget support
+- [ ] User-selectable widget ordering
+- [ ] Save and restore named desktop layouts
+- [ ] Profiles: Study / Deep Work / Gaming / Minimal
+- [ ] Quiet hours and notification do-not-disturb mode
 
-## v0.3 — Data Layer
+## v0.3 — Local Data Layer
 
 - [ ] SQLite `DataStore`
-- [ ] Database schema versioning and migrations
-- [ ] Data backup before migrations
-- [ ] Local Markdown activity log: `log.md`
-- [ ] Markdown monthly report export
-- [ ] JSON import / export for categories and preferences
+- [ ] Database schema versioning
+- [ ] Safe migrations
+- [ ] Automatic database backup before migrations
+- [ ] Local Markdown activity feed: `log.md`
+- [ ] Monthly Markdown report export
+- [ ] JSON export / import for settings and categories
 - [ ] CSV export for study sessions
 - [ ] Optional encrypted local database
-- [ ] Automatic backup rotation
+- [ ] Backup rotation
+- [ ] Data health check and corruption-safe recovery
+- [ ] Session audit trail for manual edits and undo operations
 
 ## v0.4 — Pomodoro and Study Sessions
 
@@ -56,27 +71,32 @@ Legend:
 - [ ] Optional 25 / 5 focus-break cycle
 - [ ] Editable university subject list
 - [ ] `Free study` category
-- [ ] Change the active category mid-session
+- [ ] Change active category mid-session
 - [ ] Early finish records actual time spent
 - [ ] Undo the last recorded session
 - [ ] Restore the last undone session
-- [ ] Optional short text note after a session
+- [ ] Optional short note after a session
 - [ ] Tags: theory, lab, exam, CTF, project, reading
-- [ ] Session quality / energy rating, optional and private
+- [ ] Optional energy / concentration rating
 - [ ] Per-subject weekly study targets
-- [ ] Study-session reminder only when manually enabled
+- [ ] Pomodoro completion notification
+- [ ] Optional sound and vibration-style notification profiles
+- [ ] Session interruption reason: break, task complete, fatigue, distraction
+- [ ] Focus-session history
 
 ## v0.5 — University Widgets
 
 - [ ] Schedule photo widget
-- [ ] Sudá / lichá university week widget
-- [ ] Configurable first Monday of the semester
+- [ ] Sudá / lichá university week parity widget
+- [ ] Configurable first Monday of semester
 - [ ] Deadlines widget
 - [ ] Exam countdown
-- [ ] University grade and credit tracker
+- [ ] Grade and credit tracker
 - [ ] Assignment progress tracker
 - [ ] Daily focus widget: one meaningful task only
-- [ ] Quick capture: temporary idea / task / note widget
+- [ ] Quick capture: temporary task / idea / note widget
+- [ ] Semester goal progress
+- [ ] Exam revision planner
 
 ## v0.6 — Habits, Reading and Reflection
 
@@ -85,7 +105,7 @@ Legend:
 - [ ] Weekly progress: 0–7 days
 - [ ] Gentle streak display
 - [ ] Streak freeze: one recovery day does not break the chain
-- [ ] Avoid failure-focused wording
+- [ ] Recovery-friendly wording instead of failure-focused wording
 - [ ] Books widget
 - [ ] Current page / total pages
 - [ ] Reading progress bar
@@ -101,20 +121,21 @@ Legend:
 - [ ] Per-subject study-minute graph
 - [ ] Weekly comparison
 - [ ] GitHub-style yearly study heatmap
-- [ ] Subject goal progress rings
-- [ ] Game mode: hide all widgets immediately
-- [ ] Deep-work mode: 50-minute focus session + hide distractions
+- [ ] Subject-goal progress rings
 - [ ] Fullscreen app detection through Windows APIs
-- [ ] Automatic game mode suggestion, never forced
+- [ ] Automatic Game Mode suggestion, never forced
 - [ ] Windows toast notifications
 - [ ] Global keyboard shortcuts
 - [ ] Autostart through Windows Run registry key
-- [ ] Light and dark theme
+- [ ] Light and dark themes
 - [ ] Reduced-motion mode
+- [ ] High-contrast accessibility option
+- [ ] Configurable font scale
+- [ ] Per-widget opacity and click-through mode
 
 ## v0.8 — Quality and Portfolio
 
-- [ ] Unit tests for DataStore
+- [ ] Unit tests for `DataStore`
 - [ ] Widget Registry tests
 - [ ] GitHub Actions CI for Windows
 - [ ] GitHub Actions CI for Ubuntu
@@ -124,19 +145,23 @@ Legend:
 - [ ] Windows release packaging with `windeployqt`
 - [ ] Installer evaluation: NSIS or Inno Setup
 - [ ] Architecture documentation
-- [ ] Security and privacy threat model document
+- [ ] Security and privacy threat-model document
 - [ ] Dependency inventory / SBOM
+- [ ] User-facing privacy documentation
+- [ ] Crash log opt-in, stored locally
 
 ## v1.0 — Local Integrations
 
 ### Local DataBus
 
 - [ ] Localhost-only HTTP / WebSocket JSON API
-- [ ] API authentication token stored locally
-- [ ] Clear local API versioning
-- [ ] Permission model for connected local apps
+- [ ] API versioning
+- [ ] Local API authentication token
+- [ ] Explicit permission model for connected local apps
 - [ ] No externally exposed network listener by default
 - [ ] Local audit log for integration events
+- [ ] Rate limiting for local API calls
+- [ ] Secure secret storage for API tokens
 
 ### bio-tracker
 
@@ -148,7 +173,10 @@ Legend:
 - [ ] Eye strain, posture and water reminders
 - [ ] Environment signal support: temperature, humidity, room darkness
 - [ ] Never present medical diagnosis
-- [ ] Keep all biometric data local by default
+- [ ] Keep biometric data local by default
+- [ ] Configurable baseline windows for HRV / resting pulse
+- [ ] Quiet fatigue alerts during fullscreen games
+- [ ] Queue non-urgent wellbeing suggestions until focus mode ends
 
 ### deave Second Brain
 
@@ -157,6 +185,7 @@ Legend:
 - [ ] Send reflection entries to deave
 - [ ] Open relevant deave workspace from a widget
 - [ ] Unified local dashboard
+- [ ] Shared local search index
 
 ### Local AI with Ollama
 
@@ -165,11 +194,13 @@ Legend:
 - [ ] Weekly reflection in a supportive tone
 - [ ] Ask-your-progress mini chat
 - [ ] Study-plan suggestion based on goals and deadlines
-- [ ] Fatigue-aware focus recommendation from bio-tracker data
+- [ ] Fatigue-aware focus suggestion from bio-tracker data
 - [ ] Explicit opt-in before sending any private local data to an LLM
 - [ ] No cloud AI requirement
+- [ ] Show the exact local data sent to an LLM before generation
+- [ ] Configurable local model and context limits
 
-## Design principles
+## Design Principles
 
 - Local and private by default
 - No cloud dependency for core features

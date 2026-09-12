@@ -28,7 +28,7 @@ WelcomeWidget::WelcomeWidget(QWidget* parent)
 
     auto* minimizeButton = new QPushButton("−");
     minimizeButton->setFixedSize(30, 30);
-    minimizeButton->setToolTip("Minimize window");
+    minimizeButton->setToolTip("Hide to system tray");
     minimizeButton->setCursor(Qt::PointingHandCursor);
 
     auto* closeButton = new QPushButton("×");
@@ -116,7 +116,9 @@ WelcomeWidget::WelcomeWidget(QWidget* parent)
         minimizeButton,
         &QPushButton::clicked,
         this,
-        &QWidget::showMinimized
+        [this]() {
+            hideToTray();
+        }
     );
 
     connect(

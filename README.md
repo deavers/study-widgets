@@ -3,23 +3,32 @@
 A local-first desktop study companion built with C++ and Qt.
 
 StudyWidgets will provide lightweight desktop widgets for focused study:
-Pomodoro sessions, subject tracking, habits, books, schedules, statistics,
-semester week parity, and future biometric / local-AI integrations.
+Pomodoro sessions, subject tracking, habits, books, schedules, university
+week parity, statistics, and future biometric / local-AI integrations.
 
-> Status: active early development. The project currently has a working
-> CMake + Qt6 + MinGW setup, a draggable frameless base widget, and a
-> plugin-style widget registry.
+> Status: active early development. The application currently includes a
+> working Qt + CMake + MinGW environment, frameless desktop widgets,
+> a plugin-style widget registry, a Control Panel and Windows system tray support.
 
-## Preview
+## Current milestone
 
-Current milestone:
+The current version provides the first working application shell:
 
-- Frameless desktop-style Welcome widget
-- Rounded dark UI card
-- Mouse dragging
-- Position persistence through QSettings
-- Minimize and explicit application exit controls
-- Plugin-style widget registration
+- Frameless, rounded desktop-style `WelcomeWidget`
+- Mouse drag-to-move behavior
+- Widget position persistence through `QSettings`
+- Plugin-style `WidgetRegistry`
+- Registry-driven Control Panel
+- Enable / disable widget checkboxes
+- Windows System Tray icon and menu
+- Hide widgets to tray
+- Restore widgets from tray
+- Explicit `Exit StudyWidgets` tray action
+- Game Mode with synchronized UI state:
+  - `Game mode: OFF`
+  - `Game mode: ON`
+  - checked tray menu action
+- Widgets remain lightweight while hidden
 
 ## Features
 
@@ -30,26 +39,29 @@ Current milestone:
 | Habits | Daily check-offs, gentle streaks, weekly progress and recovery days |
 | Books | Reading list, pages read, progress bars and weekly reading count |
 | University | Schedule photo, Sudá / lichá week parity, deadlines, exams and credits |
-| Focus | Daily focus item, deep-work mode, anti-overwhelm workflow |
-| Modes | Game mode, system tray, autostart, global hotkeys and notifications |
-| Integrations | bio-tracker readiness data, deave Second Brain, local Ollama assistant |
+| Focus | Daily focus item, deep-work mode and anti-overwhelm workflow |
+| Modes | Game mode, tray support, autostart, global hotkeys and notifications |
+| Integrations | bio-tracker readiness data, deave Second Brain and local Ollama assistant |
 
 ## Principles
 
-- **Local-first** — no cloud account, no telemetry and no forced online service.
-- **Private by default** — study data stays on the user's machine.
-- **Lightweight** — widgets should be nearly idle when not actively used.
-- **Modular** — one widget is one focused C++ source file.
-- **Gentle productivity** — show progress, context and recovery instead of guilt.
-- **Integration-ready** — communicate with bio-tracker, deave and local AI through localhost APIs.
+- **Local-first** — no cloud account, telemetry or forced online service
+- **Private by default** — study data stays on the user's device
+- **Lightweight** — widgets should be nearly idle while hidden or inactive
+- **Modular** — one widget is one focused C++ source file
+- **Gentle productivity** — progress, context and recovery instead of guilt
+- **Integration-ready** — future local communication through localhost APIs
+- **Security-conscious** — integrations remain opt-in, local and documented
 
-## Current architecture
+## Architecture
 
 ```text
 src/
 ├── main.cpp
 ├── WidgetBase.h
 ├── WidgetRegistry.h
+├── ControlPanel.h
+├── ControlPanel.cpp
 └── widgets/
     ├── WelcomeWidget.h
     └── WelcomeWidget.cpp
@@ -57,17 +69,20 @@ src/
 
 ### WidgetBase
 
-`WidgetBase` is the foundation for every desktop widget:
+`WidgetBase` is the common base class for desktop widgets.
 
-- Frameless window
-- Rounded custom background
+It provides:
+
+- Frameless window behavior
+- Rounded custom widget background
 - Drag-to-move behavior
-- Saved position through QSettings
-- Always-on-top desktop widget behavior
+- Saved window position through QSettings
+- Always-on-top widget behavior
+- Generic `hideToTray()` callback support
 
 ### WidgetRegistry
 
-Widgets register themselves using:
+Widgets self-register through a small macro:
 
 ```cpp
 REGISTER_WIDGET(
@@ -77,9 +92,41 @@ REGISTER_WIDGET(
 )
 ```
 
-Later, the Control Panel will read this registry and allow the user to
-enable, disable and configure every available widget without changing
-`main.cpp`.
+The Control Panel reads the Registry and automatically creates a checkbox for
+each registered widget. Later, adding a new widget will require only:
+
+1. Add one `.cpp` / `.h` widget implementation
+2. Register it with `REGISTER_WIDGET`
+3. Rebuild the application
+
+### Control Panel
+
+The Control Panel is the central application controller.
+
+It owns:
+
+- Widget enable/disable state
+- Active widget instances
+- System Tray icon
+- Tray context menu
+- Game Mode state
+- Widget restoration after hiding
+
+### System Tray
+
+StudyWidgets stays available in the Windows System Tray.
+
+Tray actions:
+
+```text
+Open Control Panel
+Show widgets
+Hide widgets
+Game mode
+Exit StudyWidgets
+```
+
+Closing the Control Panel hides it to tray rather than terminating the app.
 
 ## Build on Windows
 
@@ -91,7 +138,7 @@ enable, disable and configure every available widget without changing
 - Git
 - PowerShell
 
-### Configure the current shell
+### Configure the current PowerShell session
 
 ```powershell
 $env:Path = "C:\Qt\Tools\mingw1310_64\bin;C:\Qt\6.11.2\mingw_64\bin;$env:Path"
@@ -112,7 +159,7 @@ cmake --build build --parallel
 
 ## Project roadmap
 
-The complete development plan is maintained in [ROADMAP.md](ROADMAP.md).
+See [ROADMAP.md](ROADMAP.md) for the full development plan.
 
 ## License
 

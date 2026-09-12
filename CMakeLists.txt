@@ -12,6 +12,8 @@ add_executable(StudyWidgets
     src/main.cpp
     src/WidgetBase.h
     src/WidgetRegistry.h
+    src/ControlPanel.h
+    src/ControlPanel.cpp
     src/widgets/WelcomeWidget.h
     src/widgets/WelcomeWidget.cpp
 )
