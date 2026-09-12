@@ -6,12 +6,14 @@ set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_AUTOMOC ON)
 
-find_package(Qt6 REQUIRED COMPONENTS Widgets)
+find_package(Qt6 REQUIRED COMPONENTS Widgets Sql)
 
 add_executable(StudyWidgets
     src/main.cpp
     src/WidgetBase.h
     src/WidgetRegistry.h
+    src/DataStore.h
+    src/DataStore.cpp
     src/ControlPanel.h
     src/ControlPanel.cpp
     src/widgets/WelcomeWidget.h
@@ -20,4 +22,9 @@ add_executable(StudyWidgets
 
 target_include_directories(StudyWidgets PRIVATE src)
 
-target_link_libraries(StudyWidgets PRIVATE Qt6::Widgets)
+target_link_libraries(
+    StudyWidgets
+    PRIVATE
+        Qt6::Widgets
+        Qt6::Sql
+)

@@ -51,9 +51,15 @@ Legend:
 
 ## v0.3 — Local Data Layer
 
-- [ ] SQLite `DataStore`
-- [ ] Database schema versioning
-- [ ] Safe migrations
+- [x] SQLite `DataStore` foundation
+- [x] Automatic local SQLite database creation
+- [x] Database schema versioning foundation
+- [x] Schema version 1
+- [x] `study_sessions` table
+- [x] Add study-session API
+- [x] Read recent study-session API
+- [x] Human-readable SQLite error reporting
+- [ ] Safe migrations for future schema versions
 - [ ] Automatic database backup before migrations
 - [ ] Local Markdown activity feed: `log.md`
 - [ ] Monthly Markdown report export
@@ -63,6 +69,7 @@ Legend:
 - [ ] Backup rotation
 - [ ] Data health check and corruption-safe recovery
 - [ ] Session audit trail for manual edits and undo operations
+- [ ] User-selectable data directory
 
 ## v0.4 — Pomodoro and Study Sessions
 

@@ -1,6 +1,8 @@
 #include <QApplication>
+#include <QMessageBox>
 
 #include "ControlPanel.h"
+#include "DataStore.h"
 
 int main(int argc, char* argv[]) 
 {
@@ -10,6 +12,18 @@ int main(int argc, char* argv[])
     QApplication::setOrganizationName("deavers");
 
     app.setQuitOnLastWindowClosed(false);
+
+    if (!DataStore::instance().open()) 
+    {
+        QMessageBox::critical(
+            nullptr,
+            "StudyWidgets database error",
+            "The local SQLite database could not be opened.\n\n" +
+            DataStore::instance().lastError()
+        );
+
+        return 1;
+    }
 
     ControlPanel controlPanel;
     controlPanel.show();

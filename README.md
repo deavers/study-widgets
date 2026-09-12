@@ -29,6 +29,10 @@ The current version provides the first working application shell:
   - `Game mode: ON`
   - checked tray menu action
 - Widgets remain lightweight while hidden
+- Local SQLite DataStore foundation
+- Database schema versioning
+- Local `study_sessions` table ready for Pomodoro data
+- Automatic database creation through QStandardPaths
 
 ## Features
 
@@ -60,6 +64,8 @@ src/
 ├── main.cpp
 ├── WidgetBase.h
 ├── WidgetRegistry.h
+├── DataStore.h
+├── DataStore.cpp
 ├── ControlPanel.h
 ├── ControlPanel.cpp
 └── widgets/
@@ -127,6 +133,28 @@ Exit StudyWidgets
 ```
 
 Closing the Control Panel hides it to tray rather than terminating the app.
+
+### Local DataStore
+
+`DataStore` manages the application's local SQLite database.
+
+Current responsibilities:
+
+- Open the local database during application startup
+- Create the first database schema automatically
+- Track the database schema version
+- Create the `study_sessions` table
+- Add a study session
+- Read recent study sessions
+- Return readable local database errors
+
+The database is currently stored in the Windows application-data directory:
+
+```text
+%APPDATA%\deavers\StudyWidgets\studywidgets.sqlite
+```
+
+No study data is sent to a cloud service.
 
 ## Build on Windows
 
