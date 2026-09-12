@@ -1,0 +1,20 @@
+# Build
+build/
+out/
+cmake-build-*/
+
+# Qt / CMake
+*.user
+*.user.*
+CMakeLists.txt.user
+CMakeCache.txt
+CMakeFiles/
+
+# IDE
+.vscode/
+.vs/
+.idea/
+
+# OS
+Thumbs.db
+.DS_Store
