@@ -1,76 +1,119 @@
-# StudyWidgets 🎛
+# StudyWidgets
 
-Local-first desktop study widgets: a pomodoro timer with subject tracking,
-habits, books, schedule and weekly stats. Built with **C++ / Qt**.
-No cloud, no accounts, no telemetry — all data stays on your machine.
+A local-first desktop study companion built with C++ and Qt.
 
-> 🚧 Status: early development (v0.1). See [ROADMAP.md](ROADMAP.md) for the full plan.
+StudyWidgets will provide lightweight desktop widgets for focused study:
+Pomodoro sessions, subject tracking, habits, books, schedules, statistics,
+semester week parity, and future biometric / local-AI integrations.
+
+> Status: active early development. The project currently has a working
+> CMake + Qt6 + MinGW setup, a draggable frameless base widget, and a
+> plugin-style widget registry.
+
+## Preview
+
+Current milestone:
+
+- Frameless desktop-style Welcome widget
+- Rounded dark UI card
+- Mouse dragging
+- Position persistence through QSettings
+- Minimize and explicit application exit controls
+- Plugin-style widget registration
 
 ## Features
 
-| Widget | Description |
+| Area | Planned capabilities |
 |---|---|
-| 🍅 Pomodoro | 25/50 min modes, subject selection or "Free swim" category, switch category mid-session, early finish still counts, undo/restore last entry |
-| 📊 Stats | Study minutes per subject for day / week / month |
-| ✅ Habits | Daily check-off, 🔥 streak, weekly progress |
-| 📚 Books | Pages read, progress bars, weekly page count |
-| 🗓 Schedule | Your timetable photo pinned to the desktop |
-| 📅 Week parity | Sudá (even) / lichá (odd) university week |
-| 🎮 Game mode | Hide all widgets with zero CPU/GPU cost |
+| Pomodoro | 25/50 minute sessions, pauses, subjects, free-study category, early finish tracking, undo/restore |
+| Study tracking | Per-subject minutes, daily / weekly / monthly statistics, targets and progress |
+| Habits | Daily check-offs, gentle streaks, weekly progress and recovery days |
+| Books | Reading list, pages read, progress bars and weekly reading count |
+| University | Schedule photo, Sudá / lichá week parity, deadlines, exams and credits |
+| Focus | Daily focus item, deep-work mode, anti-overwhelm workflow |
+| Modes | Game mode, system tray, autostart, global hotkeys and notifications |
+| Integrations | bio-tracker readiness data, deave Second Brain, local Ollama assistant |
 
 ## Principles
 
-- **Local & private** — SQLite database on your disk, nothing leaves your machine
-- **One widget = one .cpp** — drop a file into `src/widgets/`, rebuild, done
-- **Lightweight** — a sleeping desktop companion, not a background service
-- **Gentle framing** — progress over guilt; a missed day doesn't break the streak
-- **Integration-ready** — designed to connect to local AI (Ollama) and
-  biometric trackers (pulse, HRV) through a local JSON API
+- **Local-first** — no cloud account, no telemetry and no forced online service.
+- **Private by default** — study data stays on the user's machine.
+- **Lightweight** — widgets should be nearly idle when not actively used.
+- **Modular** — one widget is one focused C++ source file.
+- **Gentle productivity** — show progress, context and recovery instead of guilt.
+- **Integration-ready** — communicate with bio-tracker, deave and local AI through localhost APIs.
 
-## Build
-
-### Windows
-
-Prerequisites: [Qt online installer](https://www.qt.io/download-open-source)
-(Qt 6.x, MinGW or MSVC) and CMake.
-
-```powershell
-cmake -B build -DCMAKE_PREFIX_PATH="C:/Qt/6.9.1/mingw_64" -DCMAKE_BUILD_TYPE=Release
-cmake --build build
-.\build\StudyWidgets.exe
-```
-
-### Linux
-
-```bash
-sudo apt install build-essential cmake qt6-base-dev libqt6sql6-sqlite
-cmake -B build -DCMAKE_BUILD_TYPE=Release && cmake --build build
-./build/StudyWidgets
-```
-
-## Project structure
+## Current architecture
 
 ```text
 src/
-├── main.cpp              # entry point
-├── WidgetRegistry.h      # plugin-style widget registration
-├── WidgetBase.h          # frameless draggable card widget
-├── ControlPanel.h/.cpp   # enable/disable widgets, game mode, autostart
-├── DataStore.h/.cpp      # SQLite + Markdown persistence
-└── widgets/              # one .cpp per widget — add yours here
+├── main.cpp
+├── WidgetBase.h
+├── WidgetRegistry.h
+└── widgets/
+    ├── WelcomeWidget.h
+    └── WelcomeWidget.cpp
 ```
 
-## Adding your own widget
+### WidgetBase
 
-1. Copy `src/widgets/ExampleWidget.cpp` to `MyWidget.cpp`
-2. Change the id, title and the UI inside
-3. `cmake --build build` — your widget appears in the control panel automatically
+`WidgetBase` is the foundation for every desktop widget:
 
-## Roadmap
+- Frameless window
+- Rounded custom background
+- Drag-to-move behavior
+- Saved position through QSettings
+- Always-on-top desktop widget behavior
 
-See [ROADMAP.md](ROADMAP.md) — from the widget core to local-AI summaries
-and bio-tracker fatigue alerts.
+### WidgetRegistry
+
+Widgets register themselves using:
+
+```cpp
+REGISTER_WIDGET(
+    "welcome",
+    "Welcome widget",
+    WelcomeWidget
+)
+```
+
+Later, the Control Panel will read this registry and allow the user to
+enable, disable and configure every available widget without changing
+`main.cpp`.
+
+## Build on Windows
+
+### Requirements
+
+- Qt 6.11.2 with `mingw_64`
+- MinGW 13.1.0 from Qt Tools
+- CMake
+- Git
+- PowerShell
+
+### Configure the current shell
+
+```powershell
+$env:Path = "C:\Qt\Tools\mingw1310_64\bin;C:\Qt\6.11.2\mingw_64\bin;$env:Path"
+```
+
+### Configure, build and run
+
+```powershell
+cmake -S . -B build `
+  -G "MinGW Makefiles" `
+  -DCMAKE_PREFIX_PATH="C:/Qt/6.11.2/mingw_64" `
+  -DCMAKE_BUILD_TYPE=Release
+
+cmake --build build --parallel
+
+.\build\StudyWidgets.exe
+```
+
+## Project roadmap
+
+The complete development plan is maintained in [ROADMAP.md](ROADMAP.md).
 
 ## License
 
-[MIT](LICENSE)
+This project is licensed under the [MIT License](LICENSE).

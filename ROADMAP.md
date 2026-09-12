@@ -1,73 +1,183 @@
-# 🗺 StudyWidgets Roadmap
+# StudyWidgets Roadmap
 
-A living checklist. This file is the project's long-term memory —
-every agreed idea lands here so nothing is lost.
+A living project checklist and long-term memory.
+Every agreed feature belongs here before implementation starts.
 
-## v0.1 — Core
-- [ ] Project skeleton: CMake + Qt6 + empty window (Windows: Qt online installer, MinGW)
-- [ ] Widget registry (REGISTER_WIDGET) — a new widget is one .cpp in `src/widgets/`
-- [ ] BaseWidget: frameless card, drag to move, position saved per widget
-- [ ] Control panel: enable/disable checkboxes
-- [ ] README, .gitignore, LICENSE
+Legend:
 
-## v0.2 — Data
-- [ ] DataStore: SQLite (sessions, habits, books, journal)
-- [ ] log.md feed — every record mirrored to Markdown
-- [ ] DB schema versioning (`schema_version` + migrations)
-- [ ] report.md export
+- `[x]` completed
+- `[~]` currently in progress
+- `[ ]` planned
 
-## v0.3 — Pomodoro
-- [ ] 25/50 min, pause/resume
-- [ ] Categories: subjects + "🌊 Free swim", editable list
-- [ ] Change category mid-session
+## v0.1 — Foundation
+
+- [x] Public GitHub repository
+- [x] English README, roadmap, .gitignore and MIT license
+- [x] CMake project skeleton
+- [x] Qt 6.11.2 + MinGW 13.1.0 build environment on Windows
+- [x] First Qt application build and launch
+- [x] `WidgetBase`: frameless rounded desktop card
+- [x] Mouse drag-to-move behavior
+- [x] QSettings position persistence
+- [x] `WelcomeWidget`: first working widget
+- [x] Explicit minimize and application-exit controls
+- [x] Plugin-style `WidgetRegistry`
+- [~] Basic code cleanup and architecture documentation
+
+## v0.2 — Control Center
+
+- [ ] Control Panel main window
+- [ ] Read all widgets from `WidgetRegistry`
+- [ ] Enable / disable widgets through checkboxes
+- [ ] Save enabled widget state with QSettings
+- [ ] System tray icon
+- [ ] Restore hidden widgets from the tray
+- [ ] Explicit `Exit StudyWidgets` action in tray menu
+- [ ] Distinguish widget close from application exit
+- [ ] Widget settings button and per-widget configuration dialog
+- [ ] Multi-instance widget support
+
+## v0.3 — Data Layer
+
+- [ ] SQLite `DataStore`
+- [ ] Database schema versioning and migrations
+- [ ] Data backup before migrations
+- [ ] Local Markdown activity log: `log.md`
+- [ ] Markdown monthly report export
+- [ ] JSON import / export for categories and preferences
+- [ ] CSV export for study sessions
+- [ ] Optional encrypted local database
+- [ ] Automatic backup rotation
+
+## v0.4 — Pomodoro and Study Sessions
+
+- [ ] Pomodoro widget: 25 / 50 minute modes
+- [ ] Pause / resume
+- [ ] Optional 25 / 5 focus-break cycle
+- [ ] Editable university subject list
+- [ ] `Free study` category
+- [ ] Change the active category mid-session
 - [ ] Early finish records actual time spent
-- [ ] Undo / "restore number"
-- [ ] Optional 25/5 cycle with auto-break
+- [ ] Undo the last recorded session
+- [ ] Restore the last undone session
+- [ ] Optional short text note after a session
+- [ ] Tags: theory, lab, exam, CTF, project, reading
+- [ ] Session quality / energy rating, optional and private
+- [ ] Per-subject weekly study targets
+- [ ] Study-session reminder only when manually enabled
 
-## v0.4 — Widgets
-- [ ] 📅 Sudá / lichá week parity (anchor = first Monday of the semester)
-- [ ] 🗓 Schedule photo
-- [ ] ✅ Habits: daily check, 🔥 streak, weekly progress 0–7
-- [ ] 📚 Books: pages, progress bar, weekly pages
-- [ ] 🎯 Daily focus (one main thing — anti-overwhelm)
-- [ ] 📝 Evening reflection: 3 journal lines
+## v0.5 — University Widgets
 
-## v0.5 — Modes & stats
-- [ ] 📊 Performance graph: day / week / month
-- [ ] 🎮 Game mode: hide everything, zero load
-- [ ] Auto game mode when a fullscreen app launches (Windows API)
-- [ ] 🔥 Deep-work button: 50-min pomodoro + game mode in one click
-- [ ] 🚀 Autostart (Windows Run registry key)
-- [ ] Tray: icon, menu, Windows toast notifications
-- [ ] Streak freeze: one missed day per week doesn't break the chain
-- [ ] Gentle framing (progress, never "failure")
-- [ ] Multi-instance widgets (two identical windows)
+- [ ] Schedule photo widget
+- [ ] Sudá / lichá university week widget
+- [ ] Configurable first Monday of the semester
+- [ ] Deadlines widget
+- [ ] Exam countdown
+- [ ] University grade and credit tracker
+- [ ] Assignment progress tracker
+- [ ] Daily focus widget: one meaningful task only
+- [ ] Quick capture: temporary idea / task / note widget
 
-## v0.6 — Polish
-- [ ] CI: GitHub Actions builds for windows-latest + ubuntu-latest
-- [ ] Global hotkeys (RegisterHotKey) for game mode
-- [ ] i18n RU/EN
-- [ ] DataStore unit tests (QTest)
-- [ ] Dark/light theme
+## v0.6 — Habits, Reading and Reflection
 
-## v1.0 — Integrations (deave / bio-tracker / local AI)
-- [ ] Local DataBus: localhost HTTP/WebSocket JSON API — single data
-      exchange point between applications
-- [ ] bio-tracker: pulse/rMSSD from Amazfit Band 7 → "you're tired, rest"
-      widget, morning readiness index, color indication
-- [ ] deave (Tauri/Rust/FastAPI): shared data, Second Brain dashboard
-- [ ] Ollama (local GPU): evening day summary in your own words,
-      study advice, "ask about your progress" mini-chat
-- [ ] Exam countdown + university grades/credits
-- [ ] Per-subject goals: weekly hours, progress rings
-- [ ] Year heatmap (GitHub-style) of study minutes
-- [ ] CSV / iCal export
-- [ ] Optional SQLCipher encryption
-- [ ] Reminders: water, posture, eyes (paired with bio-tracker)
+- [ ] Habits widget
+- [ ] Daily completion toggle
+- [ ] Weekly progress: 0–7 days
+- [ ] Gentle streak display
+- [ ] Streak freeze: one recovery day does not break the chain
+- [ ] Avoid failure-focused wording
+- [ ] Books widget
+- [ ] Current page / total pages
+- [ ] Reading progress bar
+- [ ] Weekly pages read
+- [ ] Evening reflection widget
+- [ ] Three prompts: what worked, what was difficult, what matters tomorrow
+- [ ] Private local journal export to Markdown
 
-## Principles
-- Local & private: everything on disk, no cloud
-- One widget = one .cpp file, no edits to foreign code
-- Lightweight: a second of CPU per minute, no background services
-- Gentle framing: progress only, never failures
-- Integration-ready: DataBus API designed in from v0.2
+## v0.7 — Statistics and Focus Modes
+
+- [ ] Study statistics widget
+- [ ] Day / week / month views
+- [ ] Per-subject study-minute graph
+- [ ] Weekly comparison
+- [ ] GitHub-style yearly study heatmap
+- [ ] Subject goal progress rings
+- [ ] Game mode: hide all widgets immediately
+- [ ] Deep-work mode: 50-minute focus session + hide distractions
+- [ ] Fullscreen app detection through Windows APIs
+- [ ] Automatic game mode suggestion, never forced
+- [ ] Windows toast notifications
+- [ ] Global keyboard shortcuts
+- [ ] Autostart through Windows Run registry key
+- [ ] Light and dark theme
+- [ ] Reduced-motion mode
+
+## v0.8 — Quality and Portfolio
+
+- [ ] Unit tests for DataStore
+- [ ] Widget Registry tests
+- [ ] GitHub Actions CI for Windows
+- [ ] GitHub Actions CI for Ubuntu
+- [ ] Code formatting configuration
+- [ ] Static analysis
+- [ ] Versioned releases
+- [ ] Windows release packaging with `windeployqt`
+- [ ] Installer evaluation: NSIS or Inno Setup
+- [ ] Architecture documentation
+- [ ] Security and privacy threat model document
+- [ ] Dependency inventory / SBOM
+
+## v1.0 — Local Integrations
+
+### Local DataBus
+
+- [ ] Localhost-only HTTP / WebSocket JSON API
+- [ ] API authentication token stored locally
+- [ ] Clear local API versioning
+- [ ] Permission model for connected local apps
+- [ ] No externally exposed network listener by default
+- [ ] Local audit log for integration events
+
+### bio-tracker
+
+- [ ] Receive local readiness data from bio-tracker
+- [ ] Receive pulse and rMSSD / HRV summaries
+- [ ] Morning readiness widget
+- [ ] Fatigue-aware study suggestion
+- [ ] Gentle rest recommendation
+- [ ] Eye strain, posture and water reminders
+- [ ] Environment signal support: temperature, humidity, room darkness
+- [ ] Never present medical diagnosis
+- [ ] Keep all biometric data local by default
+
+### deave Second Brain
+
+- [ ] Exchange study sessions with deave
+- [ ] Display daily focus from deave
+- [ ] Send reflection entries to deave
+- [ ] Open relevant deave workspace from a widget
+- [ ] Unified local dashboard
+
+### Local AI with Ollama
+
+- [ ] Fully local Ollama connection
+- [ ] Daily study summary generated from local data
+- [ ] Weekly reflection in a supportive tone
+- [ ] Ask-your-progress mini chat
+- [ ] Study-plan suggestion based on goals and deadlines
+- [ ] Fatigue-aware focus recommendation from bio-tracker data
+- [ ] Explicit opt-in before sending any private local data to an LLM
+- [ ] No cloud AI requirement
+
+## Design principles
+
+- Local and private by default
+- No cloud dependency for core features
+- One widget = one focused source file
+- No unnecessary background service
+- Low CPU, GPU and RAM usage
+- Progress over guilt
+- Recovery is part of productivity
+- Every AI feature is optional
+- Every biometric feature is advisory, not medical
+- Security boundaries are documented before integrations are added

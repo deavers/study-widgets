@@ -1,5 +1,8 @@
 #include "WelcomeWidget.h"
 
+#include "../WidgetRegistry.h"
+
+#include <QApplication>
 #include <QFont>
 #include <QHBoxLayout>
 #include <QLabel>
@@ -7,8 +10,7 @@
 #include <QVBoxLayout>
 
 WelcomeWidget::WelcomeWidget(QWidget* parent)
-    : WidgetBase("welcome", parent) 
-    {
+    : WidgetBase("welcome", parent) {
     resize(380, 230);
 
     auto* rootLayout = new QVBoxLayout(this);
@@ -24,12 +26,17 @@ WelcomeWidget::WelcomeWidget(QWidget* parent)
     titleFont.setBold(true);
     titleLabel->setFont(titleFont);
 
+    auto* minimizeButton = new QPushButton("−");
+    minimizeButton->setFixedSize(30, 30);
+    minimizeButton->setToolTip("Minimize window");
+    minimizeButton->setCursor(Qt::PointingHandCursor);
+
     auto* closeButton = new QPushButton("×");
     closeButton->setFixedSize(30, 30);
-    closeButton->setToolTip("Close widget");
+    closeButton->setToolTip("Exit StudyWidgets");
     closeButton->setCursor(Qt::PointingHandCursor);
 
-    closeButton->setStyleSheet(R"(
+    minimizeButton->setStyleSheet(R"(
         QPushButton {
             background-color: transparent;
             border: none;
@@ -49,8 +56,29 @@ WelcomeWidget::WelcomeWidget(QWidget* parent)
         }
     )");
 
+    closeButton->setStyleSheet(R"(
+        QPushButton {
+            background-color: transparent;
+            border: none;
+            border-radius: 15px;
+            color: #aeb4c2;
+            font-size: 22px;
+            font-weight: bold;
+        }
+
+        QPushButton:hover {
+            background-color: #b94b5c;
+            color: #ffffff;
+        }
+
+        QPushButton:pressed {
+            background-color: #923b49;
+        }
+    )");
+
     headerLayout->addWidget(titleLabel);
     headerLayout->addStretch();
+    headerLayout->addWidget(minimizeButton);
     headerLayout->addWidget(closeButton);
 
     auto* subtitleLabel = new QLabel("Your local study companion");
@@ -84,5 +112,24 @@ WelcomeWidget::WelcomeWidget(QWidget* parent)
     rootLayout->addStretch();
     rootLayout->addWidget(statusLabel);
 
-    connect(closeButton, &QPushButton::clicked, this, &QWidget::close);
+    connect(
+        minimizeButton,
+        &QPushButton::clicked,
+        this,
+        &QWidget::showMinimized
+    );
+
+    connect(
+        closeButton,
+        &QPushButton::clicked,
+        []() {
+            QApplication::quit();
+        }
+    );
 }
+
+REGISTER_WIDGET(
+    "welcome",
+    "Welcome widget",
+    WelcomeWidget
+)
