@@ -9,14 +9,14 @@ class QLabel;
 class QPushButton;
 class QTimer;
 
-class PomodoroWidget : public WidgetBase 
+class PomodoroWidget : public WidgetBase
 {
 public:
     explicit PomodoroWidget(QWidget* parent = nullptr);
     ~PomodoroWidget() override;
 
 private:
-    enum class SessionState 
+    enum class SessionState
     {
         Idle,
         Running,

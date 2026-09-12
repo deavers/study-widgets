@@ -6,25 +6,20 @@
 #include <functional>
 #include <vector>
 
-struct WidgetInfo
-{
+struct WidgetInfo {
     QString id;
     QString displayName;
     std::function<QWidget*()> create;
 };
 
-inline std::vector<WidgetInfo>& widgetRegistry() 
-{
+inline std::vector<WidgetInfo>& widgetRegistry() {
     static std::vector<WidgetInfo> registry;
     return registry;
 }
 
-inline QWidget* createWidgetById(const QString& id) 
-{
-    for (const WidgetInfo& widget : widgetRegistry()) 
-    {
-        if (widget.id == id) 
-        {
+inline QWidget* createWidgetById(const QString& id) {
+    for (const WidgetInfo& widget : widgetRegistry()) {
+        if (widget.id == id) {
             return widget.create();
         }
     }
