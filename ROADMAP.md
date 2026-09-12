@@ -173,6 +173,30 @@ Legend:
 - [ ] User-facing privacy documentation
 - [ ] Crash log opt-in, stored locally
 
+## v0.9 — Privacy and Security
+
+- [x] Local-first project principle
+- [x] No telemetry / no cloud requirement for core features
+- [x] Private-data exclusions in `.gitignore`
+- [x] Public `SECURITY.md` policy
+- [x] Parameterized SQLite queries
+- [x] Input validation before study-session writes
+- [x] SQLite foreign-key enforcement
+- [ ] Threat model document using STRIDE or similar methodology
+- [ ] Local data classification: public / private / sensitive
+- [ ] Data-retention and deletion policy
+- [ ] Automatic encrypted local backup option
+- [ ] SQLCipher evaluation for optional encrypted SQLite storage
+- [ ] Windows DPAPI integration for local API tokens
+- [ ] Windows Credential Manager integration
+- [ ] GitHub secret scanning and pre-commit secret checks
+- [ ] Dependency vulnerability scanning
+- [ ] SBOM generation for releases
+- [ ] Security-focused code review checklist
+- [ ] Local log redaction
+- [ ] Permission dashboard for integrations
+- [ ] Privacy dashboard: show stored data locations
+
 ## v1.0 — Local Integrations
 
 ### Local DataBus

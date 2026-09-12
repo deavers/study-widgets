@@ -66,6 +66,19 @@ The current version provides the first working application shell:
 - **Integration-ready** — future local communication through localhost APIs
 - **Security-conscious** — integrations remain opt-in, local and documented
 
+## Privacy and Security
+
+StudyWidgets is local-first by design.
+
+- No account, telemetry or cloud service is required for core features.
+- Study sessions, categories, habits and future reflections stay on the local device.
+- The SQLite database is excluded from Git.
+- External integrations are opt-in only.
+- Future bio-tracker, deave and Ollama integrations will use localhost APIs by default.
+- Sensitive values such as passwords, tokens and encryption keys must never be stored in source code or QSettings.
+
+See [SECURITY.md](SECURITY.md) for the full security and privacy policy.
+
 ## Architecture
 
 ```text

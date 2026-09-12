@@ -1,20 +1,23 @@
-# Build
-build/
-out/
-cmake-build-*/
+# Private local application data
+*.sqlite
+*.sqlite-shm
+*.sqlite-wal
+*.db
+*.db-shm
+*.db-wal
 
-# Qt / CMake
-*.user
-*.user.*
-CMakeLists.txt.user
-CMakeCache.txt
-CMakeFiles/
+# Local exports, backups and logs
+private-data/
+exports/
+backups/
+logs/
 
-# IDE
-.vscode/
-.vs/
-.idea/
-
-# OS
-Thumbs.db
-.DS_Store
+# Secrets and environment files
+.env
+.env.*
+!.env.example
+secrets/
+*.key
+*.pem
+*.p12
+*.pfx
