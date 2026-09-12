@@ -1,4 +1,5 @@
 cmake_minimum_required(VERSION 3.16)
+
 project(StudyWidgets VERSION 0.1.0 LANGUAGES CXX)
 
 set(CMAKE_CXX_STANDARD 17)
@@ -9,7 +10,11 @@ find_package(Qt6 REQUIRED COMPONENTS Widgets)
 
 add_executable(StudyWidgets
     src/main.cpp
+    src/WidgetBase.h
+    src/widgets/WelcomeWidget.h
+    src/widgets/WelcomeWidget.cpp
 )
 
 target_include_directories(StudyWidgets PRIVATE src)
+
 target_link_libraries(StudyWidgets PRIVATE Qt6::Widgets)
