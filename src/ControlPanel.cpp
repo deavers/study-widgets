@@ -105,7 +105,7 @@ ControlPanel::ControlPanel(QWidget* parent)
 
     setupWidgetControls();
 
-    for (QCheckBox* checkBox : m_widgetCheckBoxes) 
+    for (QCheckBox* checkBox : m_widgetCheckBoxes)
     {
         rootLayout->addWidget(checkBox);
     }
@@ -151,15 +151,15 @@ ControlPanel::ControlPanel(QWidget* parent)
     );
 }
 
-ControlPanel::~ControlPanel() 
+ControlPanel::~ControlPanel()
 {
-    for (QWidget* widget : m_activeWidgets) 
+    for (QWidget* widget : m_activeWidgets)
     {
         delete widget;
     }
 }
 
-void ControlPanel::setupTrayIcon() 
+void ControlPanel::setupTrayIcon()
 {
     m_trayIcon = new QSystemTrayIcon(
         QApplication::style()->standardIcon(QStyle::SP_ComputerIcon),
@@ -218,18 +218,17 @@ void ControlPanel::setupTrayIcon()
     connect(
         exitAction,
         &QAction::triggered,
-        []() {
-            QApplication::quit();
-        }
+        this,
+        &ControlPanel::exitApplication
     );
 
     connect(
         m_trayIcon,
         &QSystemTrayIcon::activated,
         this,
-        [this](QSystemTrayIcon::ActivationReason reason) 
+        [this](QSystemTrayIcon::ActivationReason reason)
         {
-            if (reason == QSystemTrayIcon::Trigger) 
+            if (reason == QSystemTrayIcon::Trigger)
             {
                 showControlPanel();
             }
@@ -239,11 +238,11 @@ void ControlPanel::setupTrayIcon()
     m_trayIcon->show();
 }
 
-void ControlPanel::setupWidgetControls() 
+void ControlPanel::setupWidgetControls()
 {
     QSettings settings;
 
-    for (const WidgetInfo& widgetInfo : widgetRegistry()) 
+    for (const WidgetInfo& widgetInfo : widgetRegistry())
     {
         auto* checkBox = new QCheckBox(widgetInfo.displayName);
 
@@ -260,26 +259,26 @@ void ControlPanel::setupWidgetControls()
             checkBox,
             &QCheckBox::toggled,
             this,
-            [this, id = widgetInfo.id](bool checked) 
+            [this, id = widgetInfo.id](bool checked)
             {
                 setWidgetEnabled(id, checked);
             }
         );
 
-        if (enabled) 
+        if (enabled)
         {
             createAndShowWidget(widgetInfo.id);
         }
     }
 }
 
-void ControlPanel::createAndShowWidget(const QString& id) 
+void ControlPanel::createAndShowWidget(const QString& id)
 {
-    if (m_activeWidgets.contains(id)) 
+    if (m_activeWidgets.contains(id))
     {
         QWidget* widget = m_activeWidgets.value(id);
 
-        if (!m_gameModeEnabled) 
+        if (!m_gameModeEnabled)
         {
             widget->showNormal();
             widget->raise();
@@ -291,7 +290,7 @@ void ControlPanel::createAndShowWidget(const QString& id)
 
     QWidget* widget = createWidgetById(id);
 
-    if (widget == nullptr) 
+    if (widget == nullptr)
     {
         showTrayMessage(
             "StudyWidgets",
@@ -300,15 +299,20 @@ void ControlPanel::createAndShowWidget(const QString& id)
         return;
     }
 
-    if (auto* baseWidget = dynamic_cast<WidgetBase*>(widget)) 
+    if (auto* baseWidget = dynamic_cast<WidgetBase*>(widget))
     {
         baseWidget->setHideHandler(
-            [this, id]() 
-            {
+            [this, id]() {
                 showTrayMessage(
                     "StudyWidgets",
                     id + " was hidden. Use the tray icon to restore it."
                 );
+            }
+        );
+
+        baseWidget->setExitHandler(
+            [this]() {
+                exitApplication();
             }
         );
     }
@@ -323,7 +327,7 @@ void ControlPanel::createAndShowWidget(const QString& id)
 void ControlPanel::setWidgetEnabled(
     const QString& id,
     bool enabled
-) 
+)
 {
     QSettings settings;
     settings.setValue("widgets/" + id + "/enabled", enabled);
@@ -338,7 +342,7 @@ void ControlPanel::setWidgetEnabled(
     }
 }
 
-void ControlPanel::showEnabledWidgets() 
+void ControlPanel::showEnabledWidgets()
 {
     if (m_gameModeEnabled) {
         m_gameModeEnabled = false;
@@ -354,7 +358,7 @@ void ControlPanel::showEnabledWidgets()
     }
 }
 
-void ControlPanel::hideAllWidgets(bool showNotification) 
+void ControlPanel::hideAllWidgets(bool showNotification)
 {
     for (QWidget* widget : m_activeWidgets) {
         widget->hide();
@@ -368,7 +372,7 @@ void ControlPanel::hideAllWidgets(bool showNotification)
     }
 }
 
-void ControlPanel::setGameMode(bool enabled) 
+void ControlPanel::setGameMode(bool enabled)
 {
     if (m_gameModeEnabled == enabled) {
         updateGameModeUi();
@@ -397,7 +401,7 @@ void ControlPanel::setGameMode(bool enabled)
     );
 }
 
-void ControlPanel::updateGameModeUi() 
+void ControlPanel::updateGameModeUi()
 {
     if (m_gameModeButton != nullptr) {
         const QSignalBlocker buttonBlocker(m_gameModeButton);
@@ -417,7 +421,7 @@ void ControlPanel::updateGameModeUi()
     }
 }
 
-void ControlPanel::showControlPanel() 
+void ControlPanel::showControlPanel()
 {
     showNormal();
     raise();
@@ -427,7 +431,7 @@ void ControlPanel::showControlPanel()
 void ControlPanel::showTrayMessage(
     const QString& title,
     const QString& message
-) 
+)
 {
     if (m_trayIcon == nullptr) {
         return;
@@ -441,8 +445,46 @@ void ControlPanel::showTrayMessage(
     );
 }
 
-void ControlPanel::closeEvent(QCloseEvent* event) 
+void ControlPanel::exitApplication()
 {
+    if (m_isExiting)
+    {
+        return;
+    }
+
+    m_isExiting = true;
+
+    if (m_trayIcon != nullptr)
+    {
+        m_trayIcon->hide();
+    }
+
+    for (QWidget* widget : m_activeWidgets)
+    {
+        if (widget == nullptr)
+        {
+            continue;
+        }
+
+        widget->hide();
+        delete widget;
+    }
+
+    m_activeWidgets.clear();
+
+    hide();
+
+    QApplication::exit(0);
+}
+
+void ControlPanel::closeEvent(QCloseEvent* event)
+{
+    if (m_isExiting)
+    {
+        event->accept();
+        return;
+    }
+
     hide();
 
     showTrayMessage(

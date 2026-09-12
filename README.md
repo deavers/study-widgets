@@ -34,11 +34,20 @@ The current version provides the first working application shell:
 - Local `study_sessions` table ready for Pomodoro data
 - Automatic database creation through QStandardPaths
 
+- Working Pomodoro widget
+- 25 and 50 minute focus modes
+- Start, pause and resume workflow
+- Early-stop session persistence
+- Automatic session save during application exit
+- Local SQLite-backed daily study total
+- Editable active category during a session
+- Accurate one-second countdown using `Qt::PreciseTimer`
+
 ## Features
 
 | Area | Planned capabilities |
 |---|---|
-| Pomodoro | 25/50 minute sessions, pauses, subjects, free-study category, early finish tracking, undo/restore |
+| Pomodoro | 25/50 minute focus modes, start/pause/resume, categories, early finish tracking, automatic save on exit, SQLite persistence and daily totals |
 | Study tracking | Per-subject minutes, daily / weekly / monthly statistics, targets and progress |
 | Habits | Daily check-offs, gentle streaks, weekly progress and recovery days |
 | Books | Reading list, pages read, progress bars and weekly reading count |
@@ -70,7 +79,9 @@ src/
 ├── ControlPanel.cpp
 └── widgets/
     ├── WelcomeWidget.h
-    └── WelcomeWidget.cpp
+    ├── WelcomeWidget.cpp
+    ├── PomodoroWidget.h
+    └── PomodoroWidget.cpp
 ```
 
 ### WidgetBase
@@ -132,6 +143,10 @@ Game mode
 Exit StudyWidgets
 ```
 
+When `Exit StudyWidgets` is selected, the Control Panel explicitly closes all
+active widgets, hides the tray icon, saves an active Pomodoro session as an
+early/incomplete session, and exits the application in one action.
+
 Closing the Control Panel hides it to tray rather than terminating the app.
 
 ### Local DataStore
@@ -155,6 +170,34 @@ The database is currently stored in the Windows application-data directory:
 ```
 
 No study data is sent to a cloud service.
+
+### Pomodoro Widget
+
+`PomodoroWidget` is the first data-producing StudyWidgets widget.
+
+Current behavior:
+
+- Choose a 25 or 50 minute focus duration
+- Start, pause and resume a focus session
+- Choose a study category
+- Change the active category while the timer is running
+- Stop early and save the actual focused duration
+- Automatically save an active session as incomplete during application exit
+- Store all sessions in the local SQLite database
+- Show the exact daily total as `HH:MM:SS`
+- Use `Qt::PreciseTimer` with a one-second refresh interval
+
+A session is stored with:
+
+```text
+category
+started_at
+finished_at
+duration_seconds
+completed
+note
+created_at
+```
 
 ## Build on Windows
 

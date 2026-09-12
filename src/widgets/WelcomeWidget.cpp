@@ -2,7 +2,6 @@
 
 #include "../WidgetRegistry.h"
 
-#include <QApplication>
 #include <QFont>
 #include <QHBoxLayout>
 #include <QLabel>
@@ -124,8 +123,9 @@ WelcomeWidget::WelcomeWidget(QWidget* parent)
     connect(
         closeButton,
         &QPushButton::clicked,
-        []() {
-            QApplication::quit();
+        this,
+        [this]() {
+            requestApplicationExit();
         }
     );
 }

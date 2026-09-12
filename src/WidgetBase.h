@@ -30,6 +30,10 @@ public:
         m_hideHandler = std::move(handler);
     }
 
+    void setExitHandler(std::function<void()> handler) {
+        m_exitHandler = std::move(handler);
+    }
+
 protected:
     void hideToTray() {
         hide();
@@ -39,7 +43,15 @@ protected:
         }
     }
 
-    void paintEvent(QPaintEvent* event) override {
+    void requestApplicationExit()
+    {
+        if (m_exitHandler) {
+            m_exitHandler();
+        }
+    }
+
+    void paintEvent(QPaintEvent* event) override
+    {
         Q_UNUSED(event);
 
         QPainter painter(this);
@@ -52,8 +64,10 @@ protected:
         painter.drawRoundedRect(cardRect, 16, 16);
     }
 
-    void mousePressEvent(QMouseEvent* event) override {
-        if (event->button() == Qt::LeftButton) {
+    void mousePressEvent(QMouseEvent* event) override
+    {
+        if (event->button() == Qt::LeftButton)
+        {
             m_dragOffset = globalMousePosition(event) - frameGeometry().topLeft();
             m_isDragging = true;
             event->accept();
@@ -63,8 +77,10 @@ protected:
         QWidget::mousePressEvent(event);
     }
 
-    void mouseMoveEvent(QMouseEvent* event) override {
-        if (m_isDragging && (event->buttons() & Qt::LeftButton)) {
+    void mouseMoveEvent(QMouseEvent* event) override
+    {
+        if (m_isDragging && (event->buttons() & Qt::LeftButton))
+        {
             move(globalMousePosition(event) - m_dragOffset);
             event->accept();
             return;
@@ -73,8 +89,10 @@ protected:
         QWidget::mouseMoveEvent(event);
     }
 
-    void mouseReleaseEvent(QMouseEvent* event) override {
-        if (event->button() == Qt::LeftButton && m_isDragging) {
+    void mouseReleaseEvent(QMouseEvent* event) override
+    {
+        if (event->button() == Qt::LeftButton && m_isDragging)
+        {
             m_isDragging = false;
             savePosition();
             event->accept();
@@ -84,7 +102,8 @@ protected:
         QWidget::mouseReleaseEvent(event);
     }
 
-    void closeEvent(QCloseEvent* event) override {
+    void closeEvent(QCloseEvent* event) override
+    {
         savePosition();
         event->accept();
     }
@@ -98,18 +117,21 @@ private:
 #endif
     }
 
-    void savePosition() const {
+    void savePosition() const
+    {
         QSettings settings;
         settings.setValue("widgets/" + m_widgetId + "/position", pos());
     }
 
-    void restorePosition() {
+    void restorePosition()
+    {
         QSettings settings;
 
         const QVariant savedPosition =
             settings.value("widgets/" + m_widgetId + "/position");
 
-        if (savedPosition.isValid()) {
+        if (savedPosition.isValid())
+        {
             move(savedPosition.toPoint());
         }
     }
@@ -119,4 +141,5 @@ private:
     bool m_isDragging = false;
 
     std::function<void()> m_hideHandler;
+    std::function<void()> m_exitHandler;
 };

@@ -13,19 +13,19 @@ constexpr int CurrentSchemaVersion = 1;
 
 const QString ConnectionName = "StudyWidgetsSqlConnection";
 
-QString toDatabaseDateTime(const QDateTime& value) 
+QString toDatabaseDateTime(const QDateTime& value)
 {
     return value.toString(Qt::ISODateWithMs);
 }
 
-QDateTime fromDatabaseDateTime(const QString& value) 
+QDateTime fromDatabaseDateTime(const QString& value)
 {
     QDateTime result = QDateTime::fromString(
         value,
         Qt::ISODateWithMs
     );
 
-    if (!result.isValid()) 
+    if (!result.isValid())
     {
         result = QDateTime::fromString(
             value,
@@ -38,27 +38,27 @@ QDateTime fromDatabaseDateTime(const QString& value)
 
 }
 
-DataStore& DataStore::instance() 
+DataStore& DataStore::instance()
 {
     static DataStore dataStore;
     return dataStore;
 }
 
-bool DataStore::open() 
+bool DataStore::open()
 {
-    if (m_isOpen) 
+    if (m_isOpen)
     {
         return true;
     }
 
     m_lastError.clear();
 
-    if (!openDatabase()) 
+    if (!openDatabase())
     {
         return false;
     }
 
-    if (!ensureSchema()) 
+    if (!ensureSchema())
     {
         return false;
     }
@@ -72,24 +72,24 @@ bool DataStore::open()
     return true;
 }
 
-bool DataStore::isOpen() const 
+bool DataStore::isOpen() const
 {
     return m_isOpen;
 }
 
-QString DataStore::databasePath() const 
+QString DataStore::databasePath() const
 {
     return m_databasePath;
 }
 
-QString DataStore::lastError() const 
+QString DataStore::lastError() const
 {
     return m_lastError;
 }
 
-bool DataStore::openDatabase() 
+bool DataStore::openDatabase()
 {
-    if (!QSqlDatabase::drivers().contains("QSQLITE")) 
+    if (!QSqlDatabase::drivers().contains("QSQLITE"))
     {
         setError(
             "Qt SQLite driver is not available. "
@@ -104,7 +104,7 @@ bool DataStore::openDatabase()
             QStandardPaths::AppDataLocation
         );
 
-    if (appDataDirectory.isEmpty()) 
+    if (appDataDirectory.isEmpty())
     {
         setError(
             "Windows AppData directory could not be resolved."
@@ -115,7 +115,7 @@ bool DataStore::openDatabase()
 
     QDir directory(appDataDirectory);
 
-    if (!directory.mkpath(".")) 
+    if (!directory.mkpath("."))
     {
         setError(
             "Could not create the StudyWidgets application data directory."
@@ -128,11 +128,11 @@ bool DataStore::openDatabase()
 
     QSqlDatabase database;
 
-    if (QSqlDatabase::contains(ConnectionName)) 
+    if (QSqlDatabase::contains(ConnectionName))
     {
         database = QSqlDatabase::database(ConnectionName);
-    } 
-    else 
+    }
+    else
     {
         database = QSqlDatabase::addDatabase(
             "QSQLITE",
@@ -142,7 +142,7 @@ bool DataStore::openDatabase()
 
     database.setDatabaseName(m_databasePath);
 
-    if (!database.open()) 
+    if (!database.open())
     {
         setError(
             "Could not open SQLite database: " +
@@ -154,7 +154,7 @@ bool DataStore::openDatabase()
 
     QSqlQuery pragmaQuery(database);
 
-    if (!pragmaQuery.exec("PRAGMA foreign_keys = ON")) 
+    if (!pragmaQuery.exec("PRAGMA foreign_keys = ON"))
     {
         setError(
             "Could not enable SQLite foreign keys: " +
@@ -167,7 +167,7 @@ bool DataStore::openDatabase()
     return true;
 }
 
-bool DataStore::ensureSchema() 
+bool DataStore::ensureSchema()
 {
     QSqlDatabase database =
         QSqlDatabase::database(ConnectionName);
@@ -181,7 +181,7 @@ bool DataStore::ensureSchema()
         )
     )";
 
-    if (!query.exec(createVersionTable)) 
+    if (!query.exec(createVersionTable))
     {
         setError(
             "Could not create schema_version table: " +
@@ -196,7 +196,7 @@ bool DataStore::ensureSchema()
         "FROM schema_version "
         "ORDER BY version DESC "
         "LIMIT 1"
-    )) 
+    ))
     {
         setError(
             "Could not read database schema version: " +
@@ -206,7 +206,7 @@ bool DataStore::ensureSchema()
         return false;
     }
 
-    if (!query.next()) 
+    if (!query.next())
     {
         return createSchemaVersionOne();
     }
@@ -223,7 +223,7 @@ bool DataStore::ensureSchema()
         return false;
     }
 
-    if (databaseSchemaVersion < CurrentSchemaVersion) 
+    if (databaseSchemaVersion < CurrentSchemaVersion)
     {
         setError(
             "Database migration is required but has not been implemented yet."
@@ -235,7 +235,7 @@ bool DataStore::ensureSchema()
     return true;
 }
 
-bool DataStore::createSchemaVersionOne() 
+bool DataStore::createSchemaVersionOne()
 {
     QSqlDatabase database =
         QSqlDatabase::database(ConnectionName);
@@ -255,7 +255,7 @@ bool DataStore::createSchemaVersionOne()
         )
     )";
 
-    if (!query.exec(createSessionsTable)) 
+    if (!query.exec(createSessionsTable))
     {
         setError(
             "Could not create study_sessions table: " +
@@ -269,7 +269,7 @@ bool DataStore::createSchemaVersionOne()
         "CREATE INDEX IF NOT EXISTS "
         "idx_study_sessions_started_at "
         "ON study_sessions(started_at)"
-    )) 
+    ))
     {
         setError(
             "Could not create study_sessions index: " +
@@ -289,7 +289,7 @@ bool DataStore::createSchemaVersionOne()
         toDatabaseDateTime(QDateTime::currentDateTime())
     );
 
-    if (!query.exec()) 
+    if (!query.exec())
     {
         setError(
             "Could not save schema version: " +
@@ -304,16 +304,16 @@ bool DataStore::createSchemaVersionOne()
 
 bool DataStore::addStudySession(
     const StudySession& session
-) 
+)
 {
-    if (!m_isOpen && !open()) 
+    if (!m_isOpen && !open())
     {
         return false;
     }
 
     const QString category = session.category.trimmed();
 
-    if (category.isEmpty()) 
+    if (category.isEmpty())
     {
         setError(
             "Study session category cannot be empty."
@@ -323,7 +323,7 @@ bool DataStore::addStudySession(
     }
 
     if (!session.startedAt.isValid() ||
-        !session.finishedAt.isValid()) 
+        !session.finishedAt.isValid())
         {
         setError(
             "Study session start and finish times must be valid."
@@ -332,7 +332,7 @@ bool DataStore::addStudySession(
         return false;
     }
 
-    if (session.finishedAt < session.startedAt) 
+    if (session.finishedAt < session.startedAt)
     {
         setError(
             "Study session finish time cannot be earlier than start time."
@@ -341,7 +341,7 @@ bool DataStore::addStudySession(
         return false;
     }
 
-    if (session.durationSeconds < 0) 
+    if (session.durationSeconds < 0)
     {
         setError(
             "Study session duration cannot be negative."
@@ -373,12 +373,21 @@ bool DataStore::addStudySession(
     query.addBindValue(toDatabaseDateTime(session.finishedAt));
     query.addBindValue(session.durationSeconds);
     query.addBindValue(session.completed ? 1 : 0);
-    query.addBindValue(session.note.trimmed());
+
+    QString note = session.note.trimmed();
+
+    if (note.isNull())
+    {
+        note = QStringLiteral("");
+    }
+
+    query.addBindValue(note);
+
     query.addBindValue(
         toDatabaseDateTime(QDateTime::currentDateTime())
     );
 
-    if (!query.exec()) 
+    if (!query.exec())
     {
         setError(
             "Could not save study session: " +
@@ -393,16 +402,16 @@ bool DataStore::addStudySession(
 
 QList<StudySession> DataStore::recentStudySessions(
     int limit
-) 
+)
 {
     QList<StudySession> sessions;
 
-    if (!m_isOpen && !open()) 
+    if (!m_isOpen && !open())
     {
         return sessions;
     }
 
-    if (limit < 1) 
+    if (limit < 1)
     {
         return sessions;
     }
@@ -428,7 +437,7 @@ QList<StudySession> DataStore::recentStudySessions(
 
     query.addBindValue(limit);
 
-    if (!query.exec()) 
+    if (!query.exec())
     {
         setError(
             "Could not load study sessions: " +
@@ -438,7 +447,7 @@ QList<StudySession> DataStore::recentStudySessions(
         return sessions;
     }
 
-    while (query.next()) 
+    while (query.next())
     {
         StudySession session;
 
@@ -460,7 +469,61 @@ QList<StudySession> DataStore::recentStudySessions(
     return sessions;
 }
 
-void DataStore::setError(const QString& error) 
+int DataStore::totalStudySecondsForDate(
+    const QDate& date
+)
+{
+    if (!m_isOpen && !open())
+    {
+        return 0;
+    }
+
+    if (!date.isValid())
+    {
+        setError(
+            "Cannot calculate total study time for an invalid date."
+        );
+
+        return 0;
+    }
+
+    const QDateTime dayStart = date.startOfDay();
+    const QDateTime nextDayStart = date.addDays(1).startOfDay();
+
+    QSqlDatabase database =
+        QSqlDatabase::database(ConnectionName);
+
+    QSqlQuery query(database);
+
+    query.prepare(R"(
+        SELECT COALESCE(SUM(duration_seconds), 0)
+        FROM study_sessions
+        WHERE started_at >= ?
+          AND started_at < ?
+    )");
+
+    query.addBindValue(toDatabaseDateTime(dayStart));
+    query.addBindValue(toDatabaseDateTime(nextDayStart));
+
+    if (!query.exec())
+    {
+        setError(
+            "Could not calculate daily study duration: " +
+            query.lastError().text()
+        );
+
+        return 0;
+    }
+
+    if (!query.next())
+    {
+        return 0;
+    }
+
+    return query.value(0).toInt();
+}
+
+void DataStore::setError(const QString& error)
 {
     m_lastError = error;
 

@@ -18,6 +18,8 @@ add_executable(StudyWidgets
     src/ControlPanel.cpp
     src/widgets/WelcomeWidget.h
     src/widgets/WelcomeWidget.cpp
+    src/widgets/PomodoroWidget.h
+    src/widgets/PomodoroWidget.cpp
 )
 
 target_include_directories(StudyWidgets PRIVATE src)

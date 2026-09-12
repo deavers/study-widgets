@@ -37,6 +37,9 @@ Legend:
 - [x] Hide all active widgets
 - [x] Close Control Panel to tray
 - [x] Explicit `Exit StudyWidgets` tray action
+- [x] One-action application exit closes all active widgets
+- [x] Exit lifecycle handler shared by desktop widgets
+- [x] Save active Pomodoro session during app exit
 - [x] Widget hide-to-tray callback
 - [x] Basic Game Mode
 - [x] Game Mode button state: ON / OFF
@@ -59,6 +62,8 @@ Legend:
 - [x] Add study-session API
 - [x] Read recent study-session API
 - [x] Human-readable SQLite error reporting
+- [x] Daily study-duration query API
+- [x] Exact daily study total calculation
 - [ ] Safe migrations for future schema versions
 - [ ] Automatic database backup before migrations
 - [ ] Local Markdown activity feed: `log.md`
@@ -73,13 +78,22 @@ Legend:
 
 ## v0.4 — Pomodoro and Study Sessions
 
-- [ ] Pomodoro widget: 25 / 50 minute modes
-- [ ] Pause / resume
-- [ ] Optional 25 / 5 focus-break cycle
-- [ ] Editable university subject list
-- [ ] `Free study` category
-- [ ] Change active category mid-session
-- [ ] Early finish records actual time spent
+- [x] Pomodoro widget foundation
+- [x] 25 / 50 minute focus modes
+- [x] Start / pause / resume
+- [x] Accurate one-second countdown
+- [x] `Qt::PreciseTimer` countdown updates
+- [x] Default study categories
+- [x] `Free study` category
+- [x] Change active category mid-session
+- [x] Early finish records actual time spent
+- [x] Completed sessions record `completed = true`
+- [x] Early sessions record `completed = false`
+- [x] Save active Pomodoro session during application exit
+- [x] Local SQLite session persistence
+- [x] Daily duration summary from SQLite
+- [ ] Editable subject/category management interface
+- [ ] Custom category colors and icons
 - [ ] Undo the last recorded session
 - [ ] Restore the last undone session
 - [ ] Optional short note after a session
@@ -90,6 +104,8 @@ Legend:
 - [ ] Optional sound and vibration-style notification profiles
 - [ ] Session interruption reason: break, task complete, fatigue, distraction
 - [ ] Focus-session history
+- [ ] Automatic short-break widget
+- [ ] Long break after configurable number of sessions
 
 ## v0.5 — University Widgets
 

@@ -30,6 +30,7 @@ private:
 
     void setGameMode(bool enabled);
     void updateGameModeUi();
+    void exitApplication();
 
     void showControlPanel();
     void showTrayMessage(
@@ -45,4 +46,5 @@ private:
     QPushButton* m_gameModeButton = nullptr;
 
     bool m_gameModeEnabled = false;
+    bool m_isExiting = false;
 };

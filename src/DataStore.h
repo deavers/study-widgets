@@ -4,8 +4,9 @@
 #include <QString>
 #include <QList>
 #include <QtGlobal>
+#include <QDate>
 
-struct StudySession 
+struct StudySession
 {
     qint64 id = -1;
 
@@ -20,7 +21,7 @@ struct StudySession
     QString note;
 };
 
-class DataStore 
+class DataStore
 {
 public:
     static DataStore& instance();
@@ -35,6 +36,10 @@ public:
 
     QList<StudySession> recentStudySessions(
         int limit = 50
+    );
+
+    int totalStudySecondsForDate(
+        const QDate& date
     );
 
 private:
