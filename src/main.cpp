@@ -1,6 +1,7 @@
 #include <QApplication>
+#include <QMessageBox>
 
-#include "widgets/WelcomeWidget.h"
+#include "WidgetRegistry.h"
 
 int main(int argc, char* argv[]) 
 {
@@ -9,8 +10,24 @@ int main(int argc, char* argv[])
     QApplication::setApplicationName("StudyWidgets");
     QApplication::setOrganizationName("deavers");
 
-    WelcomeWidget widget;
-    widget.show();
+    QWidget* welcomeWidget = createWidgetById("welcome");
 
-    return app.exec();
+    if (welcomeWidget == nullptr) 
+    {
+        QMessageBox::critical(
+            nullptr,
+            "StudyWidgets",
+            "The welcome widget was not registered."
+        );
+
+        return 1;
+    }
+
+    welcomeWidget->show();
+
+    const int exitCode = app.exec();
+
+    delete welcomeWidget;
+
+    return exitCode;
 }

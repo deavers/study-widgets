@@ -11,6 +11,7 @@ find_package(Qt6 REQUIRED COMPONENTS Widgets)
 add_executable(StudyWidgets
     src/main.cpp
     src/WidgetBase.h
+    src/WidgetRegistry.h
     src/widgets/WelcomeWidget.h
     src/widgets/WelcomeWidget.cpp
 )
