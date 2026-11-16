@@ -44,12 +44,12 @@ Legend:
 - [x] Basic Game Mode
 - [x] Game Mode button state: ON / OFF
 - [x] Synchronized Game Mode tray checkbox
-- [ ] Start minimized to tray
-- [ ] Per-widget settings button
+- [x] Start minimized to tray
+- [x] Per-widget settings button
 - [ ] Multi-instance widget support
 - [ ] User-selectable widget ordering
 - [ ] Save and restore named desktop layouts
-- [ ] Profiles: Study / Deep Work / Gaming / Minimal
+- [x] Profiles: Study / Deep Work / Gaming / Minimal
 - [ ] Quiet hours and notification do-not-disturb mode
 
 ## v0.3 — Local Data Layer
