@@ -181,6 +181,91 @@ int runSelfTest()
     }
     qInfo() << "PASS: CalendarEvent CRUD & Bidirectional Sync with Goals verified.";
 
+    // Test CalendarWidget dynamic minimumSizeHint & effectiveMinimumSizeForWidth across views/contents
+    {
+        QSettings calPrefs;
+        const QVariant savedCalMode = calPrefs.value(QStringLiteral("calendar/viewMode"));
+
+        CalendarWidget calTest;
+        calTest.setSavePrefsEnabled(false);
+        calTest.show();
+        QCoreApplication::processEvents();
+
+        const QDate probeDate(2030, 5, 15);
+        calTest.setViewMode(CalendarWidget::ViewMode::Week);
+        calTest.selectDate(probeDate);
+        QCoreApplication::processEvents();
+        const QSize minEmptyHint = calTest.minimumSizeHint();
+        const QSize minEmptyEff = calTest.effectiveMinimumSizeForWidth(260);
+
+        DataStore::instance().addCalendarEvent(
+            probeDate, QStringLiteral("SelfTest: Single Calendar Item"), QStringLiteral("10:00"), QStringLiteral("study"));
+        calTest.selectDate(probeDate);
+        QCoreApplication::processEvents();
+        const QSize minOneHint = calTest.minimumSizeHint();
+        const QSize minOneEff = calTest.effectiveMinimumSizeForWidth(260);
+
+        DataStore::instance().addCalendarEvent(
+            probeDate, QStringLiteral("SelfTest: Second Calendar Item With Longer Wrapped Title"), QStringLiteral("12:00"), QStringLiteral("study"));
+        DataStore::instance().addCalendarEvent(
+            probeDate, QStringLiteral("SelfTest: Third Calendar Item"), QStringLiteral("14:00"), QStringLiteral("deadline"));
+        DataStore::instance().addCalendarEvent(
+            probeDate, QStringLiteral("SelfTest: Fourth Calendar Item"), QStringLiteral("16:00"), QStringLiteral("exam"));
+        calTest.selectDate(probeDate);
+        QCoreApplication::processEvents();
+        const QSize minFullWeekHint = calTest.minimumSizeHint();
+        const QSize minFullWeekEff = calTest.effectiveMinimumSizeForWidth(260);
+
+        calTest.setViewMode(CalendarWidget::ViewMode::Month);
+        QCoreApplication::processEvents();
+        const QSize minMonthHint = calTest.minimumSizeHint();
+        const QSize minMonthEff = calTest.effectiveMinimumSizeForWidth(260);
+
+        calTest.hide();
+
+        for (const CalendarEvent& ev : DataStore::instance().calendarEventsBetween(probeDate, probeDate))
+        {
+            if (ev.title.startsWith(QStringLiteral("SelfTest:")))
+            {
+                DataStore::instance().removeCalendarEvent(ev.id);
+            }
+        }
+        for (const GoalItem& g : DataStore::instance().goalsByHorizon(QStringLiteral("day")))
+        {
+            if (g.title.startsWith(QStringLiteral("SelfTest:")))
+            {
+                DataStore::instance().removeGoal(g.id);
+            }
+        }
+        if (savedCalMode.isValid())
+        {
+            calPrefs.setValue(QStringLiteral("calendar/viewMode"), savedCalMode);
+        }
+        else
+        {
+            calPrefs.remove(QStringLiteral("calendar/viewMode"));
+        }
+        QCoreApplication::processEvents();
+
+        qInfo() << "CalendarWidget probe:"
+                << "empty(Week) hint=" << minEmptyHint << "eff@260=" << minEmptyEff
+                << "| 1-event(Week) hint=" << minOneHint << "eff@260=" << minOneEff
+                << "| full(4-events Week) hint=" << minFullWeekHint << "eff@260=" << minFullWeekEff
+                << "| month(Month) hint=" << minMonthHint << "eff@260=" << minMonthEff;
+
+        if (minEmptyEff.height() >= minOneEff.height()
+            || minOneEff.height() >= minFullWeekEff.height()
+            || minOneEff.height() >= minMonthEff.height()
+            || minOneHint.height() >= minFullWeekHint.height()
+            || minOneHint.height() >= minMonthHint.height()
+            || minOneEff.width() > minMonthEff.width())
+        {
+            qCritical() << "FAIL: CalendarWidget dynamic minimum size did not scale down for smaller content.";
+            return 1;
+        }
+        qInfo() << "PASS: CalendarWidget dynamic minimum size scales down with active view and content.";
+    }
+
     // Verify semester schedule until semesterEndDate()
     const QDate semEnd = DataStore::semesterEndDate();
     const QList<CalendarEvent> endEvents = DataStore::instance().calendarEventsBetween(semEnd, semEnd);

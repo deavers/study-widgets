@@ -520,7 +520,7 @@ protected:
         event->accept();
     }
 
-    QSize effectiveMinimumSizeForWidth(int targetWidth = -1) const
+    virtual QSize effectiveMinimumSizeForWidth(int targetWidth = -1) const
     {
         ensurePolished();
         if (m_body)
