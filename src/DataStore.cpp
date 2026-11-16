@@ -2,6 +2,7 @@
 
 #include "CategoryConfigLoader.h"
 
+#include <QCryptographicHash>
 #include <QDebug>
 #include <QDir>
 #include <QFile>
@@ -21,7 +22,7 @@
 
 namespace {
 
-constexpr int CurrentSchemaVersion = 5;
+constexpr int CurrentSchemaVersion = 6;
 
 const QString ConnectionName = "StudyWidgetsSqlConnection";
 
@@ -222,6 +223,11 @@ bool DataStore::ensureSchema() {
         if (databaseSchemaVersion == 4) {
             if (!migrateSchemaV4ToV5()) return false;
             databaseSchemaVersion = 5;
+            continue;
+        }
+        if (databaseSchemaVersion == 5) {
+            if (!migrateSchemaV5ToV6()) return false;
+            databaseSchemaVersion = 6;
             continue;
         }
         setError("No migration path is available for the current database schema.");
@@ -496,6 +502,60 @@ bool DataStore::migrateSchemaV4ToV5() {
     }
 
     qInfo().noquote() << "StudyWidgets database migrated to schema version 5.";
+    return true;
+}
+
+bool DataStore::migrateSchemaV5ToV6()
+{
+    QDir(m_appDataDir).mkpath("backups");
+    const QString backupPath = QDir(m_appDataDir).filePath("backups/studywidgets-before-v6.sqlite");
+    if (!QFile::exists(backupPath))
+    {
+        QFile::copy(m_databasePath, backupPath);
+    }
+
+    QSqlDatabase database = QSqlDatabase::database(ConnectionName);
+    if (!database.transaction())
+    {
+        setError("Could not start V5->V6 migration transaction: " + database.lastError().text());
+        return false;
+    }
+
+    QSqlQuery query(database);
+    const QString createCachedNotesSql = R"(
+        CREATE TABLE IF NOT EXISTS cached_notes (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            source TEXT NOT NULL,
+            path TEXT NOT NULL,
+            title TEXT NOT NULL DEFAULT '',
+            content TEXT NOT NULL,
+            content_sha256 TEXT NOT NULL,
+            size INTEGER NOT NULL,
+            cached_at TEXT NOT NULL,
+            UNIQUE(source, path)
+        )
+    )";
+    if (!query.exec(createCachedNotesSql))
+    {
+        database.rollback();
+        setError("Could not create cached_notes table: " + query.lastError().text());
+        return false;
+    }
+
+    query.exec("CREATE INDEX IF NOT EXISTS idx_cached_notes_source_path ON cached_notes(source, path)");
+    query.exec("CREATE INDEX IF NOT EXISTS idx_cached_notes_cached_at ON cached_notes(cached_at)");
+
+    query.prepare("INSERT OR REPLACE INTO schema_version(version, applied_at) VALUES(?, ?)");
+    query.addBindValue(6);
+    query.addBindValue(toDatabaseDateTime(QDateTime::currentDateTime()));
+    if (!query.exec() || !database.commit())
+    {
+        database.rollback();
+        setError("Could not commit V6 migration: " + database.lastError().text());
+        return false;
+    }
+
+    qInfo().noquote() << "StudyWidgets database migrated to schema version 6.";
     return true;
 }
 
@@ -2233,4 +2293,164 @@ void DataStore::notifyListeners() {
 void DataStore::setError(const QString& error) {
     m_lastError = error;
     qWarning().noquote() << "StudyWidgets DataStore error:" << error;
+}
+
+bool DataStore::saveCachedNote(
+    const QString& source,
+    const QString& path,
+    const QString& title,
+    const QString& content,
+    const QString& contentSha256,
+    qint64 size)
+{
+    static constexpr qint64 MaxCachedNoteSizeBytes = 512 * 1024; // 512 KB
+
+    const QByteArray utf8Bytes = content.toUtf8();
+    const qint64 actualSize = (size >= 0) ? size : static_cast<qint64>(utf8Bytes.size());
+
+    // Strict 512 KB limit enforcement
+    if (actualSize > MaxCachedNoteSizeBytes || utf8Bytes.size() > MaxCachedNoteSizeBytes)
+    {
+        qWarning().noquote() << QStringLiteral("Cannot cache note exceeding 512 KB: size=%1 bytes").arg(actualSize);
+        return false;
+    }
+
+    QString sha256 = contentSha256;
+    if (sha256.isEmpty())
+    {
+        sha256 = QString::fromLatin1(QCryptographicHash::hash(utf8Bytes, QCryptographicHash::Sha256).toHex());
+    }
+
+    QSqlDatabase database = QSqlDatabase::database(ConnectionName);
+    QSqlQuery query(database);
+
+    // Upsert into cached_notes
+    query.prepare(
+        "INSERT INTO cached_notes(source, path, title, content, content_sha256, size, cached_at) "
+        "VALUES(?, ?, ?, ?, ?, ?, ?) "
+        "ON CONFLICT(source, path) DO UPDATE SET "
+        "  title = excluded.title, "
+        "  content = excluded.content, "
+        "  content_sha256 = excluded.content_sha256, "
+        "  size = excluded.size, "
+        "  cached_at = excluded.cached_at"
+    );
+    query.addBindValue(source);
+    query.addBindValue(path);
+    query.addBindValue(title);
+    query.addBindValue(content);
+    query.addBindValue(sha256);
+    query.addBindValue(actualSize);
+    query.addBindValue(toDatabaseDateTime(QDateTime::currentDateTime()));
+
+    if (!query.exec())
+    {
+        setError("Could not save cached note: " + query.lastError().text());
+        return false;
+    }
+
+    // LRU eviction ordered by cached_at
+    const int maxCount = m_maxCachedNotesCount > 0 ? m_maxCachedNotesCount : 100;
+    QSqlQuery countQuery(database);
+    if (countQuery.exec("SELECT COUNT(*) FROM cached_notes") && countQuery.next())
+    {
+        const int count = countQuery.value(0).toInt();
+        if (count > maxCount)
+        {
+            const int excess = count - maxCount;
+            QSqlQuery evictQuery(database);
+            evictQuery.prepare(
+                "DELETE FROM cached_notes WHERE id IN ("
+                "  SELECT id FROM cached_notes ORDER BY cached_at ASC, id ASC LIMIT ?"
+                ")"
+            );
+            evictQuery.addBindValue(excess);
+            evictQuery.exec();
+        }
+    }
+
+    return true;
+}
+
+bool DataStore::getCachedNote(const QString& source, const QString& path, CachedNote* outNote)
+{
+    QSqlDatabase database = QSqlDatabase::database(ConnectionName);
+    QSqlQuery query(database);
+    query.prepare(
+        "SELECT id, source, path, title, content, content_sha256, size, cached_at "
+        "FROM cached_notes WHERE source = ? AND path = ?"
+    );
+    query.addBindValue(source);
+    query.addBindValue(path);
+
+    if (!query.exec() || !query.next())
+    {
+        return false;
+    }
+
+    if (outNote)
+    {
+        outNote->id = query.value(0).toLongLong();
+        outNote->source = query.value(1).toString();
+        outNote->path = query.value(2).toString();
+        outNote->title = query.value(3).toString();
+        outNote->content = query.value(4).toString();
+        outNote->contentSha256 = query.value(5).toString();
+        outNote->size = query.value(6).toLongLong();
+        outNote->cachedAt = fromDatabaseDateTime(query.value(7).toString());
+    }
+
+    // Refresh LRU recency
+    const qint64 noteId = query.value(0).toLongLong();
+    QSqlQuery touchQuery(database);
+    touchQuery.prepare("UPDATE cached_notes SET cached_at = ? WHERE id = ?");
+    touchQuery.addBindValue(toDatabaseDateTime(QDateTime::currentDateTime()));
+    touchQuery.addBindValue(noteId);
+    touchQuery.exec();
+
+    return true;
+}
+
+bool DataStore::clearCachedNotes()
+{
+    QSqlDatabase database = QSqlDatabase::database(ConnectionName);
+    QSqlQuery query(database);
+    if (!query.exec("DELETE FROM cached_notes"))
+    {
+        setError("Could not clear cached_notes: " + query.lastError().text());
+        return false;
+    }
+    return true;
+}
+
+int DataStore::cachedNotesCount()
+{
+    QSqlDatabase database = QSqlDatabase::database(ConnectionName);
+    QSqlQuery query(database);
+    if (query.exec("SELECT COUNT(*) FROM cached_notes") && query.next())
+    {
+        return query.value(0).toInt();
+    }
+    return 0;
+}
+
+int DataStore::schemaVersion() const
+{
+    QSqlDatabase database = QSqlDatabase::database(ConnectionName);
+    QSqlQuery query(database);
+    if (query.exec("SELECT version FROM schema_version ORDER BY version DESC LIMIT 1") && query.next())
+    {
+        return query.value(0).toInt();
+    }
+    return 0;
+}
+
+void DataStore::setMaxCachedNotesCountForTesting(int count)
+{
+    m_maxCachedNotesCount = count;
+}
+
+int DataStore::maxCachedNotesCount() const
+{
+    return m_maxCachedNotesCount;
 }

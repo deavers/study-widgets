@@ -77,6 +77,18 @@ struct CalendarEvent {
     bool completed = false;
 };
 
+struct CachedNote
+{
+    qint64 id = -1;
+    QString source;
+    QString path;
+    QString title;
+    QString content;
+    QString contentSha256;
+    qint64 size = 0;
+    QDateTime cachedAt;
+};
+
 class DataStore {
 public:
     static DataStore& instance();
@@ -152,6 +164,22 @@ public:
     // Export JSON snapshot for deave OS (FastAPI / React dashboard integration)
     bool exportDeaveBridgeSnapshot();
 
+    // Cached Notes (Stage 1B - SQLite v6)
+    bool saveCachedNote(
+        const QString& source,
+        const QString& path,
+        const QString& title,
+        const QString& content,
+        const QString& contentSha256 = QString(),
+        qint64 size = -1
+    );
+    bool getCachedNote(const QString& source, const QString& path, CachedNote* outNote = nullptr);
+    bool clearCachedNotes();
+    int cachedNotesCount();
+    int schemaVersion() const;
+    void setMaxCachedNotesCountForTesting(int count);
+    int maxCachedNotesCount() const;
+
     // Semester Schedule, Specialty Curriculum & Bidirectional Auto-Sync (Calendar <-> Goals <-> Roadmaps)
     void ensureSemesterScheduleAndAutoTasks(bool forceReseed = false);
     void syncDailyTasksWithCalendarAndRoadmaps(const QDate& targetDate = QDate::currentDate());
@@ -181,6 +209,7 @@ private:
     bool migrateSchemaV2ToV3();
     bool migrateSchemaV3ToV4();
     bool migrateSchemaV4ToV5();
+    bool migrateSchemaV5ToV6();
     void seedDefaultGoalsAndReviewsIfEmpty();
 
     bool openDatabase();
@@ -188,6 +217,7 @@ private:
 
     bool m_isOpen = false;
     bool m_syncing = false;
+    int m_maxCachedNotesCount = 100;
     QDate m_lastSyncedDate;
     QList<ListenerEntry> m_listeners;
 

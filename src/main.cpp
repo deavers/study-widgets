@@ -1,9 +1,11 @@
 #include <QApplication>
 #include <QCoreApplication>
+#include <QCryptographicHash>
 #include <QDate>
 #include <QDebug>
 #include <QDir>
 #include <QElapsedTimer>
+#include <QEventLoop>
 #include <QFile>
 #include <QGuiApplication>
 #include <QLocalServer>
@@ -13,6 +15,8 @@
 #include <QScreen>
 #include <QSettings>
 #include <QStandardPaths>
+#include <QTcpServer>
+#include <QTcpSocket>
 #include <QTemporaryDir>
 #include <QTemporaryFile>
 #include <QThread>
@@ -24,6 +28,7 @@
 #include "PrayerCalculator.h"
 #include "TimeLogWriter.h"
 #include "WidgetRegistry.h"
+#include "api/DeaveApiClient.h"
 #include "widgets/CalendarWidget.h"
 #include "widgets/DailyWisdomWidget.h"
 #include "widgets/PomodoroWidget.h"
@@ -181,6 +186,271 @@ int runSelfTest()
     }
     qInfo() << "PASS: CalendarEvent CRUD & Bidirectional Sync with Goals verified.";
 
+    // --- Stage 1B Self-Test: DataStore v6 Schema & cached_notes ---
+    if (DataStore::instance().schemaVersion() != 6)
+    {
+        qCritical() << "FAIL: DataStore schema version is" << DataStore::instance().schemaVersion() << "expected 6.";
+        return 1;
+    }
+
+    const QString v6BackupPath = QDir(DataStore::instance().appDataDir()).filePath(QStringLiteral("backups/studywidgets-before-v6.sqlite"));
+    if (!QFile::exists(v6BackupPath))
+    {
+        qCritical() << "FAIL: V6 backup file missing:" << v6BackupPath;
+        return 1;
+    }
+    qInfo() << "PASS: DataStore schema v6 and backup file verified:" << v6BackupPath;
+
+    // Test cached_notes CRUD & SHA-256
+    DataStore::instance().clearCachedNotes();
+    const QString noteSrc = QStringLiteral("sample_source");
+    const QString notePath = QStringLiteral("docs/sample_note.md");
+    const QString noteTitle = QStringLiteral("Sample Note");
+    const QString noteContent = QStringLiteral("# Sample Note Content\nTesting SQLite cache v6 storage and hash computation.");
+    const QString expectedSha = QString::fromLatin1(
+        QCryptographicHash::hash(noteContent.toUtf8(), QCryptographicHash::Sha256).toHex()
+    );
+
+    if (!DataStore::instance().saveCachedNote(noteSrc, notePath, noteTitle, noteContent))
+    {
+        qCritical() << "FAIL: saveCachedNote failed:" << DataStore::instance().lastError();
+        return 1;
+    }
+
+    CachedNote readNote;
+    if (!DataStore::instance().getCachedNote(noteSrc, notePath, &readNote))
+    {
+        qCritical() << "FAIL: getCachedNote failed for saved note.";
+        return 1;
+    }
+    if (readNote.title != noteTitle || readNote.content != noteContent || readNote.contentSha256 != expectedSha)
+    {
+        qCritical() << "FAIL: getCachedNote payload mismatch.";
+        return 1;
+    }
+    qInfo() << "PASS: cached_notes CRUD and SHA-256 checksum integrity verified.";
+
+    // Test 512 KB size limit
+    const QString oversizedContent(512 * 1024 + 1024, 'X');
+    if (DataStore::instance().saveCachedNote(noteSrc, QStringLiteral("docs/oversized.md"), QStringLiteral("Oversized"), oversizedContent))
+    {
+        qCritical() << "FAIL: saveCachedNote accepted oversized note (>512 KB).";
+        return 1;
+    }
+    if (DataStore::instance().cachedNotesCount() != 1)
+    {
+        qCritical() << "FAIL: cachedNotesCount changed after oversized note rejection.";
+        return 1;
+    }
+    qInfo() << "PASS: 512 KB note size limit enforcement verified (oversized note rejected).";
+
+    // Test LRU eviction
+    DataStore::instance().setMaxCachedNotesCountForTesting(3);
+    DataStore::instance().clearCachedNotes();
+    for (int i = 1; i <= 3; ++i)
+    {
+        DataStore::instance().saveCachedNote(
+            noteSrc,
+            QStringLiteral("note_%1.md").arg(i),
+            QStringLiteral("Note %1").arg(i),
+            QStringLiteral("Content %1").arg(i)
+        );
+        QThread::msleep(15);
+    }
+    if (DataStore::instance().cachedNotesCount() != 3)
+    {
+        qCritical() << "FAIL: cachedNotesCount mismatch during LRU prep.";
+        return 1;
+    }
+    // Insert 4th note: note_1 should be evicted
+    DataStore::instance().saveCachedNote(
+        noteSrc,
+        QStringLiteral("note_4.md"),
+        QStringLiteral("Note 4"),
+        QStringLiteral("Content 4")
+    );
+    if (DataStore::instance().cachedNotesCount() != 3)
+    {
+        qCritical() << "FAIL: cachedNotesCount exceeded max limit 3 after insertion:" << DataStore::instance().cachedNotesCount();
+        return 1;
+    }
+    CachedNote evCheck;
+    if (DataStore::instance().getCachedNote(noteSrc, QStringLiteral("note_1.md"), &evCheck))
+    {
+        qCritical() << "FAIL: Oldest note_1 was not evicted by LRU.";
+        return 1;
+    }
+    if (!DataStore::instance().getCachedNote(noteSrc, QStringLiteral("note_4.md"), &evCheck))
+    {
+        qCritical() << "FAIL: New note_4 missing from cache.";
+        return 1;
+    }
+    // Reset limit to default
+    DataStore::instance().setMaxCachedNotesCountForTesting(100);
+    qInfo() << "PASS: LRU eviction ordered by cached_at verified.";
+
+    // Test clearCachedNotes
+    if (!DataStore::instance().clearCachedNotes() || DataStore::instance().cachedNotesCount() != 0)
+    {
+        qCritical() << "FAIL: clearCachedNotes did not empty cache.";
+        return 1;
+    }
+    qInfo() << "PASS: clearCachedNotes() successfully emptied cache.";
+
+    // --- Stage 1B Self-Test: DeaveApiClient isolated local mock server ---
+    {
+        QTcpServer mockServer;
+        if (!mockServer.listen(QHostAddress(QStringLiteral("127.0.0.1")), 0))
+        {
+            qCritical() << "FAIL: Could not bind mock QTcpServer on 127.0.0.1:0:" << mockServer.errorString();
+            return 1;
+        }
+
+        const quint16 mockPort = mockServer.serverPort();
+        const QString mockBaseUrl = QStringLiteral("http://127.0.0.1:%1").arg(mockPort);
+
+        QObject::connect(&mockServer, &QTcpServer::newConnection, &mockServer, [&mockServer]()
+        {
+            while (QTcpSocket* socket = mockServer.nextPendingConnection())
+            {
+                QObject::connect(socket, &QTcpSocket::readyRead, socket, [socket]()
+                {
+                    const QByteArray requestData = socket->readAll();
+                    if (requestData.contains("GET /health"))
+                    {
+                        const QByteArray body = "{\"status\":\"ok\",\"api_version\":\"1\",\"env\":\"mock_env\"}";
+                        const QByteArray response = "HTTP/1.1 200 OK\r\n"
+                                                    "Content-Type: application/json\r\n"
+                                                    "Content-Length: " + QByteArray::number(body.size()) + "\r\n"
+                                                    "Connection: close\r\n\r\n" + body;
+                        socket->write(response);
+                        socket->flush();
+                        socket->disconnectFromHost();
+                    }
+                    else if (requestData.contains("GET /api/v1/memory/read"))
+                    {
+                        const QByteArray body = "{\"source\":\"mock_src\",\"path\":\"mock.md\",\"title\":\"Mock Title\","
+                                                "\"content\":\"# Mock Content\",\"content_sha256\":\"mock_sha\","
+                                                "\"size\":14,\"mtime\":1700000000.0,\"node_id\":\"01JMOCK\",\"sensitivity\":\"normal\"}";
+                        const QByteArray response = "HTTP/1.1 200 OK\r\n"
+                                                    "Content-Type: application/json\r\n"
+                                                    "Content-Length: " + QByteArray::number(body.size()) + "\r\n"
+                                                    "Connection: close\r\n\r\n" + body;
+                        socket->write(response);
+                        socket->flush();
+                        socket->disconnectFromHost();
+                    }
+                });
+                QObject::connect(socket, &QTcpSocket::disconnected, socket, &QObject::deleteLater);
+            }
+        });
+
+        DeaveApiClient apiClient(mockBaseUrl);
+        apiClient.setTimeoutMs(400);
+
+        // 1. Verify health check 200
+        QEventLoop loop;
+        DeaveHealthInfo healthResult;
+        apiClient.checkHealth([&loop, &healthResult](const DeaveHealthInfo& info)
+        {
+            healthResult = info;
+            loop.quit();
+        });
+        loop.exec();
+
+        if (!healthResult.available || healthResult.apiVersion != QStringLiteral("1") || healthResult.env != QStringLiteral("mock_env"))
+        {
+            qCritical() << "FAIL: DeaveApiClient mock health check failed: available=" << healthResult.available
+                        << "apiVersion=" << healthResult.apiVersion << "env=" << healthResult.env;
+            return 1;
+        }
+        qInfo() << "PASS: DeaveApiClient mock health check 200 verified.";
+
+        // 2. Verify readMemoryNote 200
+        QEventLoop readLoop;
+        bool readSuccess = false;
+        DeaveNoteReadResult readResult;
+        apiClient.readMemoryNote(QStringLiteral("mock_src"), QStringLiteral("mock.md"),
+            [&readLoop, &readSuccess, &readResult](bool success, const DeaveNoteReadResult& res, const QString&)
+        {
+            readSuccess = success;
+            readResult = res;
+            readLoop.quit();
+        });
+        readLoop.exec();
+
+        if (!readSuccess || readResult.content != QStringLiteral("# Mock Content") || readResult.contentSha256 != QStringLiteral("mock_sha"))
+        {
+            qCritical() << "FAIL: DeaveApiClient mock readMemoryNote failed.";
+            return 1;
+        }
+        qInfo() << "PASS: DeaveApiClient mock readMemoryNote verified.";
+
+        // 3. Verify server close & connection failure handling
+        mockServer.close();
+        QElapsedTimer failTimer;
+        failTimer.start();
+        QEventLoop failLoop;
+        DeaveHealthInfo failHealth;
+        apiClient.checkHealth([&failLoop, &failHealth](const DeaveHealthInfo& info)
+        {
+            failHealth = info;
+            failLoop.quit();
+        });
+        failLoop.exec();
+
+        if (failHealth.available)
+        {
+            qCritical() << "FAIL: DeaveApiClient reported available after mock server close.";
+            return 1;
+        }
+        qInfo() << "PASS: DeaveApiClient connection failure handled gracefully in" << failTimer.elapsed() << "ms.";
+
+        // 4. Verify timeout handling on hanging server (non-blocking)
+        QTcpServer hangServer;
+        if (!hangServer.listen(QHostAddress(QStringLiteral("127.0.0.1")), 0))
+        {
+            qCritical() << "FAIL: Could not bind hangServer on 127.0.0.1:0:" << hangServer.errorString();
+            return 1;
+        }
+        QObject::connect(&hangServer, &QTcpServer::newConnection, &hangServer, [&hangServer]()
+        {
+            while (QTcpSocket* s = hangServer.nextPendingConnection())
+            {
+                QObject::connect(s, &QTcpSocket::disconnected, s, &QObject::deleteLater);
+            }
+        });
+
+        DeaveApiClient hangClient(QStringLiteral("http://127.0.0.1:%1").arg(hangServer.serverPort()));
+        hangClient.setTimeoutMs(300);
+
+        QElapsedTimer hangTimer;
+        hangTimer.start();
+        QEventLoop hangLoop;
+        DeaveHealthInfo hangHealth;
+        hangClient.checkHealth([&hangLoop, &hangHealth](const DeaveHealthInfo& info)
+        {
+            hangHealth = info;
+            hangLoop.quit();
+        });
+        hangLoop.exec();
+
+        const qint64 hangElapsed = hangTimer.elapsed();
+        hangServer.close();
+
+        if (hangHealth.available)
+        {
+            qCritical() << "FAIL: DeaveApiClient reported available on hanging server.";
+            return 1;
+        }
+        if (hangElapsed < 250 || hangElapsed > 2500)
+        {
+            qCritical() << "FAIL: DeaveApiClient timeout timing abnormal:" << hangElapsed << "ms";
+            return 1;
+        }
+        qInfo() << "PASS: DeaveApiClient transfer timeout (300ms) aborted hanging connection in" << hangElapsed << "ms non-blockingly.";
+    }
+
     // Verify semester schedule until semesterEndDate()
     const QDate semEnd = DataStore::semesterEndDate();
     const QList<CalendarEvent> endEvents = DataStore::instance().calendarEventsBetween(semEnd, semEnd);
@@ -310,7 +580,9 @@ bool isSingleInstanceBypassed(const QStringList& args)
 {
     if (args.contains(QStringLiteral("--self-test"))
         || args.contains(QStringLiteral("--isolated"))
-        || args.contains(QStringLiteral("--screenshot-all")))
+        || args.contains(QStringLiteral("--screenshot-all"))
+        || args.contains(QStringLiteral("--clear-notes-cache"))
+        || args.contains(QStringLiteral("--test-deave-api")))
     {
         return true;
     }
@@ -381,6 +653,119 @@ int main(int argc, char* argv[])
             QDir(isolatedAppData).removeRecursively();
         }
         return rc;
+    }
+
+    if (app.arguments().contains(QStringLiteral("--clear-notes-cache")))
+    {
+#ifdef Q_OS_WIN
+        AttachConsole(ATTACH_PARENT_PROCESS);
+        freopen("CONOUT$", "w", stdout);
+        freopen("CONOUT$", "w", stderr);
+#endif
+        if (!DataStore::instance().open())
+        {
+            fprintf(stderr, "FAIL: Could not open DataStore for --clear-notes-cache: %s\n",
+                    DataStore::instance().lastError().toLocal8Bit().constData());
+            fflush(stderr);
+            qCritical() << "FAIL: Could not open DataStore for --clear-notes-cache:" << DataStore::instance().lastError();
+            return 1;
+        }
+
+        const int beforeCount = DataStore::instance().cachedNotesCount();
+        if (!DataStore::instance().clearCachedNotes())
+        {
+            fprintf(stderr, "FAIL: clearCachedNotes() failed: %s\n",
+                    DataStore::instance().lastError().toLocal8Bit().constData());
+            fflush(stderr);
+            qCritical() << "FAIL: clearCachedNotes() failed:" << DataStore::instance().lastError();
+            return 1;
+        }
+
+        fprintf(stdout, "PASS: Cleared %d cached notes from SQLite.\n", beforeCount);
+        fflush(stdout);
+        qInfo().noquote() << QStringLiteral("PASS: Cleared %1 cached notes from SQLite.").arg(beforeCount);
+        return 0;
+    }
+
+    if (app.arguments().contains(QStringLiteral("--test-deave-api")))
+    {
+#ifdef Q_OS_WIN
+        AttachConsole(ATTACH_PARENT_PROCESS);
+        freopen("CONOUT$", "w", stdout);
+        freopen("CONOUT$", "w", stderr);
+#endif
+        if (!DataStore::instance().open())
+        {
+            fprintf(stderr, "FAIL: Could not open DataStore for --test-deave-api: %s\n",
+                    DataStore::instance().lastError().toLocal8Bit().constData());
+            fflush(stderr);
+            qCritical() << "FAIL: Could not open DataStore for --test-deave-api:" << DataStore::instance().lastError();
+            return 1;
+        }
+
+        DeaveApiClient client;
+        QEventLoop loop;
+        DeaveHealthInfo health;
+        client.checkHealth([&loop, &health](const DeaveHealthInfo& info)
+        {
+            health = info;
+            loop.quit();
+        });
+        loop.exec();
+
+        if (health.available)
+        {
+            fprintf(stdout, "[INFO] deave is ONLINE: api_version=%s, env=%s\n",
+                    health.apiVersion.toLocal8Bit().constData(),
+                    health.env.toLocal8Bit().constData());
+            fflush(stdout);
+            qInfo().noquote() << QStringLiteral("[INFO] deave is ONLINE: api_version=%1, env=%2").arg(health.apiVersion, health.env);
+            const QString testSource = QStringLiteral("memory");
+            const QString testPath = QStringLiteral("online_test_note.md");
+            const QString testContent = QStringLiteral("# Online Test Note\nVerified deave online connectivity.");
+            const bool saved = DataStore::instance().saveCachedNote(testSource, testPath, QStringLiteral("Online Test"), testContent);
+            if (!saved)
+            {
+                fprintf(stderr, "FAIL: Could not save note to SQLite cache.\n");
+                fflush(stderr);
+                qCritical() << "FAIL: Could not save note to SQLite cache.";
+                return 1;
+            }
+            CachedNote retrieved;
+            if (!DataStore::instance().getCachedNote(testSource, testPath, &retrieved))
+            {
+                fprintf(stderr, "FAIL: Could not retrieve cached note.\n");
+                fflush(stderr);
+                qCritical() << "FAIL: Could not retrieve cached note.";
+                return 1;
+            }
+            fprintf(stdout, "PASS: deave online health verified and note successfully cached.\n");
+            fflush(stdout);
+            qInfo() << "PASS: deave online health verified and note successfully cached.";
+            return 0;
+        }
+        else
+        {
+            fprintf(stdout, "[INFO] deave is OFFLINE: deave недоступен\n");
+            fflush(stdout);
+            qInfo() << "[INFO] deave is OFFLINE: deave недоступен";
+            const QString testSource = QStringLiteral("memory");
+            const QString testPath = QStringLiteral("offline_fallback_note.md");
+            const QString testContent = QStringLiteral("# Offline Fallback Note\nTesting cached note read during offline mode.");
+            DataStore::instance().saveCachedNote(testSource, testPath, QStringLiteral("Offline Fallback"), testContent);
+            CachedNote cached;
+            if (!DataStore::instance().getCachedNote(testSource, testPath, &cached) || cached.content != testContent)
+            {
+                fprintf(stderr, "FAIL: Cached note fallback retrieval failed in offline mode.\n");
+                fflush(stderr);
+                qCritical() << "FAIL: Cached note fallback retrieval failed in offline mode.";
+                return 1;
+            }
+            fprintf(stdout, "PASS: Cached note fallback verified successfully while deave is offline.\n");
+            fflush(stdout);
+            qInfo() << "PASS: Cached note fallback verified successfully while deave is offline.";
+            return 0;
+        }
     }
 
     if (app.arguments().contains("--screenshot-all")) {

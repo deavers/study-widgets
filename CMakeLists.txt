@@ -25,6 +25,8 @@ add_executable(StudyWidgets WIN32
     src/PrayerCalculator.h
     src/DataStore.h
     src/DataStore.cpp
+    src/api/DeaveApiClient.h
+    src/api/DeaveApiClient.cpp
     src/CategoryConfigLoader.h
     src/CategoryConfigLoader.cpp
     src/ControlPanel.h
