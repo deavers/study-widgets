@@ -6,12 +6,16 @@
 #include <QElapsedTimer>
 #include <QFile>
 #include <QGuiApplication>
+#include <QLocalServer>
+#include <QLocalSocket>
+#include <QLockFile>
 #include <QMessageBox>
 #include <QScreen>
 #include <QSettings>
 #include <QStandardPaths>
 #include <QTemporaryDir>
 #include <QTemporaryFile>
+#include <QThread>
 
 #include "CategoryConfigLoader.h"
 #include "ControlPanel.h"
@@ -300,6 +304,45 @@ int runSelfTest()
 #include <windows.h>
 #endif
 
+namespace {
+
+bool isSingleInstanceBypassed(const QStringList& args)
+{
+    if (args.contains(QStringLiteral("--self-test"))
+        || args.contains(QStringLiteral("--isolated"))
+        || args.contains(QStringLiteral("--screenshot-all")))
+    {
+        return true;
+    }
+
+    for (const QString& arg : args)
+    {
+        if (arg == QStringLiteral("--screenshot-dir")
+            || arg.startsWith(QStringLiteral("--screenshot-dir=")))
+        {
+            return true;
+        }
+    }
+    return false;
+}
+
+bool notifyRunningInstance(const QString& serverName)
+{
+    QLocalSocket socket;
+    socket.connectToServer(serverName);
+    if (!socket.waitForConnected(400))
+    {
+        return false;
+    }
+    socket.write("SHOW\n");
+    socket.flush();
+    socket.waitForBytesWritten(400);
+    socket.disconnectFromServer();
+    return true;
+}
+
+} // namespace
+
 int main(int argc, char* argv[])
 {
     // Use unified System DPI Awareness on Windows so frameless desktop widgets
@@ -396,6 +439,85 @@ int main(int argc, char* argv[])
         return 0;
     }
 
+    const QString singleInstanceServerName = QStringLiteral("deavers_StudyWidgets_SingleInstance_v1");
+    const QString lockDir = QStandardPaths::writableLocation(QStandardPaths::AppLocalDataLocation);
+    QLockFile instanceLock(QDir(lockDir).filePath(QStringLiteral("StudyWidgets.lock")));
+    QLocalServer singleInstanceServer;
+    ControlPanel* controlPanelPtr = nullptr;
+    bool pendingShowFromSecondInstance = false;
+
+    if (!isSingleInstanceBypassed(app.arguments()))
+    {
+        QDir().mkpath(lockDir);
+        instanceLock.setStaleLockTime(0);
+
+        if (!instanceLock.tryLock(0))
+        {
+            if (notifyRunningInstance(singleInstanceServerName))
+            {
+                return 0;
+            }
+
+            QThread::msleep(150);
+            if (notifyRunningInstance(singleInstanceServerName))
+            {
+                return 0;
+            }
+
+            if (instanceLock.error() == QLockFile::LockFailedError)
+            {
+                instanceLock.removeStaleLockFile();
+                if (!instanceLock.tryLock(0))
+                {
+                    notifyRunningInstance(singleInstanceServerName);
+                    return 0;
+                }
+            }
+            else
+            {
+                notifyRunningInstance(singleInstanceServerName);
+                return 0;
+            }
+        }
+
+        QLocalServer::removeServer(singleInstanceServerName);
+        if (singleInstanceServer.listen(singleInstanceServerName))
+        {
+            auto handleClient = [&controlPanelPtr, &pendingShowFromSecondInstance](QLocalSocket* client)
+            {
+                const QByteArray payload = client->readAll();
+                if (!payload.contains("SHOW"))
+                {
+                    return;
+                }
+                if (controlPanelPtr)
+                {
+                    controlPanelPtr->activateFromSecondInstance();
+                }
+                else
+                {
+                    pendingShowFromSecondInstance = true;
+                }
+            };
+
+            QObject::connect(&singleInstanceServer, &QLocalServer::newConnection, &app, [&singleInstanceServer, handleClient]()
+            {
+                while (QLocalSocket* client = singleInstanceServer.nextPendingConnection())
+                {
+                    QObject::connect(client, &QLocalSocket::readyRead, client, [client, handleClient]()
+                    {
+                        handleClient(client);
+                    });
+                    QObject::connect(client, &QLocalSocket::disconnected, client, &QObject::deleteLater);
+                    if (client->bytesAvailable() > 0)
+                    {
+                        handleClient(client);
+                    }
+                }
+            });
+        }
+    }
+
     if (!DataStore::instance().open()) {
         QMessageBox::critical(
             nullptr,
@@ -425,7 +547,17 @@ int main(int argc, char* argv[])
     TimeLogWriter::flushUnloggedSessions();
 
     ControlPanel controlPanel;
+    controlPanelPtr = &controlPanel;
     controlPanel.show();
+    if (pendingShowFromSecondInstance)
+    {
+        controlPanel.activateFromSecondInstance();
+        pendingShowFromSecondInstance = false;
+    }
 
-    return app.exec();
+    const int rc = app.exec();
+    controlPanelPtr = nullptr;
+    singleInstanceServer.close();
+    instanceLock.unlock();
+    return rc;
 }

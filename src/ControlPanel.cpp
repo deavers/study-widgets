@@ -596,6 +596,12 @@ void ControlPanel::showControlPanel()
     activateWindow();
 }
 
+void ControlPanel::activateFromSecondInstance()
+{
+    showEnabledWidgets();
+    showControlPanel();
+}
+
 void ControlPanel::showTrayMessage(
     const QString& title,
     const QString& message
