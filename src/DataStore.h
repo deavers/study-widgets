@@ -89,11 +89,21 @@ struct CachedNote
     QDateTime cachedAt;
 };
 
+struct DayRuleItem
+{
+    qint64 id = -1;
+    QString title;
+    bool completed = false;
+    int sortOrder = 0;
+    QDateTime createdAt;
+};
+
 class DataStore {
 public:
     static DataStore& instance();
 
     bool open();
+    void close();
     bool isOpen() const;
 
     QString databasePath() const;
@@ -180,6 +190,19 @@ public:
     void setMaxCachedNotesCountForTesting(int count);
     int maxCachedNotesCount() const;
 
+    // Notes Draft (Stage 3 - SQLite v7)
+    bool saveNotesDraft(const QString& text, const QString& target = QStringLiteral("inbox"));
+    bool getNotesDraft(QString* outText, QString* outTarget = nullptr);
+    bool clearNotesDraft();
+
+    // Day Rules Checklist (Stage 3 - SQLite v7, Zero .md sync)
+    QList<DayRuleItem> dayRules();
+    bool addDayRule(const QString& title, int sortOrder = 0);
+    bool toggleDayRule(qint64 id, bool completed);
+    bool removeDayRule(qint64 id);
+    bool resetDayRules();
+    void seedDefaultDayRulesIfEmpty();
+
     // Semester Schedule, Specialty Curriculum & Bidirectional Auto-Sync (Calendar <-> Goals <-> Roadmaps)
     void ensureSemesterScheduleAndAutoTasks(bool forceReseed = false);
     void syncDailyTasksWithCalendarAndRoadmaps(const QDate& targetDate = QDate::currentDate());
@@ -210,6 +233,7 @@ private:
     bool migrateSchemaV3ToV4();
     bool migrateSchemaV4ToV5();
     bool migrateSchemaV5ToV6();
+    bool migrateSchemaV6ToV7();
     void seedDefaultGoalsAndReviewsIfEmpty();
 
     bool openDatabase();

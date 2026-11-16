@@ -1,5 +1,6 @@
 #include "DeaveApiClient.h"
 
+#include <QDateTime>
 #include <QJsonArray>
 #include <QJsonDocument>
 #include <QJsonObject>
@@ -233,6 +234,78 @@ void DeaveApiClient::readMemoryNote(
         if (callback)
         {
             callback(false, DeaveNoteReadResult(), errorString);
+        }
+    });
+}
+
+void DeaveApiClient::captureNote(
+    const QString& target,
+    const QString& text,
+    const QString& clientId,
+    const QString& token,
+    std::function<void(const DeaveCaptureResult& result)> callback)
+{
+    const QUrl url = buildUrl(QStringLiteral("/api/v1/capture"));
+    QNetworkRequest request(url);
+    request.setTransferTimeout(m_timeoutMs);
+    request.setRawHeader("Accept", "application/json");
+    request.setHeader(QNetworkRequest::ContentTypeHeader, QStringLiteral("application/json"));
+    if (!token.trimmed().isEmpty())
+    {
+        request.setRawHeader("X-Deave-Token", token.trimmed().toLatin1());
+    }
+
+    QJsonObject rootObj;
+    rootObj.insert(QStringLiteral("target"), target.trimmed());
+    rootObj.insert(QStringLiteral("client_id"), clientId.trimmed());
+    rootObj.insert(QStringLiteral("text"), text);
+    rootObj.insert(QStringLiteral("timestamp"), QDateTime::currentDateTimeUtc().toString(Qt::ISODateWithMs));
+
+    QJsonObject metaObj;
+    metaObj.insert(QStringLiteral("source"), QStringLiteral("study-widgets"));
+    metaObj.insert(QStringLiteral("widget"), QStringLiteral("NotesWidget"));
+    rootObj.insert(QStringLiteral("metadata"), metaObj);
+
+    const QByteArray postData = QJsonDocument(rootObj).toJson(QJsonDocument::Compact);
+    QNetworkReply* reply = m_networkManager->post(request, postData);
+    attachTimeout(reply, m_timeoutMs);
+
+    connect(reply, &QNetworkReply::finished, this, [reply, callback]()
+    {
+        DeaveCaptureResult result;
+        const int statusCode = reply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt();
+        result.httpStatusCode = statusCode;
+
+        const QByteArray responseData = reply->readAll();
+        const QJsonDocument doc = QJsonDocument::fromJson(responseData);
+        const QJsonObject obj = doc.isObject() ? doc.object() : QJsonObject();
+
+        if (statusCode == 200 || statusCode == 201)
+        {
+            result.success = true;
+            result.clientId = obj.value(QStringLiteral("client_id")).toString();
+            result.target = obj.value(QStringLiteral("target")).toString();
+            result.seq = obj.value(QStringLiteral("seq")).toVariant().toLongLong();
+            result.duplicated = obj.value(QStringLiteral("duplicated")).toBool(statusCode == 200);
+            result.message = obj.value(QStringLiteral("message")).toString();
+        }
+        else
+        {
+            result.success = false;
+            if (obj.contains(QStringLiteral("detail")))
+            {
+                result.errorMessage = obj.value(QStringLiteral("detail")).toString();
+            }
+            else
+            {
+                result.errorMessage = reply->errorString();
+            }
+        }
+
+        reply->deleteLater();
+        if (callback)
+        {
+            callback(result);
         }
     });
 }

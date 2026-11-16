@@ -43,6 +43,18 @@ struct DeaveNoteReadResult
     QString sensitivity;
 };
 
+struct DeaveCaptureResult
+{
+    bool success = false;
+    int httpStatusCode = 0;
+    QString clientId;
+    QString target;
+    qint64 seq = -1;
+    bool duplicated = false;
+    QString message;
+    QString errorMessage;
+};
+
 class DeaveApiClient : public QObject
 {
     Q_OBJECT
@@ -72,6 +84,14 @@ public:
         const QString& source,
         const QString& path,
         std::function<void(bool success, const DeaveNoteReadResult& note, const QString& errorMessage)> callback
+    );
+
+    void captureNote(
+        const QString& target,
+        const QString& text,
+        const QString& clientId,
+        const QString& token,
+        std::function<void(const DeaveCaptureResult& result)> callback
     );
 
 private:

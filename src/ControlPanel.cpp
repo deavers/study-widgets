@@ -463,6 +463,13 @@ void ControlPanel::tileActiveWidgets()
     if (m_activeWidgets.contains("roadmap") && m_activeWidgets["roadmap"]->isVisible()) {
         QWidget* r = m_activeWidgets["roadmap"];
         placeWidget("roadmap", bottomLeftX, area.bottom() - margin - r->height());
+        bottomLeftX += r->width() + gap;
+    }
+    if (m_activeWidgets.contains("notes") && m_activeWidgets["notes"]->isVisible())
+    {
+        QWidget* n = m_activeWidgets["notes"];
+        placeWidget("notes", bottomLeftX, area.bottom() - margin - n->height());
+        bottomLeftX += n->width() + gap;
     }
 }
 

@@ -8,6 +8,8 @@
 #include <QEventLoop>
 #include <QFile>
 #include <QGuiApplication>
+#include <QJsonDocument>
+#include <QJsonObject>
 #include <QLocalServer>
 #include <QLocalSocket>
 #include <QLockFile>
@@ -31,6 +33,7 @@
 #include "api/DeaveApiClient.h"
 #include "widgets/CalendarWidget.h"
 #include "widgets/DailyWisdomWidget.h"
+#include "widgets/NotesWidget.h"
 #include "widgets/PomodoroWidget.h"
 
 namespace {
@@ -186,20 +189,20 @@ int runSelfTest()
     }
     qInfo() << "PASS: CalendarEvent CRUD & Bidirectional Sync with Goals verified.";
 
-    // --- Stage 1B Self-Test: DataStore v6 Schema & cached_notes ---
-    if (DataStore::instance().schemaVersion() != 6)
+    // --- Stage 3 Self-Test: DataStore v7 Schema, cached_notes, notes_draft & day_rules ---
+    if (DataStore::instance().schemaVersion() != 7)
     {
-        qCritical() << "FAIL: DataStore schema version is" << DataStore::instance().schemaVersion() << "expected 6.";
+        qCritical() << "FAIL: DataStore schema version is" << DataStore::instance().schemaVersion() << "expected 7.";
         return 1;
     }
 
-    const QString v6BackupPath = QDir(DataStore::instance().appDataDir()).filePath(QStringLiteral("backups/studywidgets-before-v6.sqlite"));
-    if (!QFile::exists(v6BackupPath))
+    const QString v7BackupPath = QDir(DataStore::instance().appDataDir()).filePath(QStringLiteral("backups/studywidgets-before-v7.sqlite"));
+    if (!QFile::exists(v7BackupPath))
     {
-        qCritical() << "FAIL: V6 backup file missing:" << v6BackupPath;
+        qCritical() << "FAIL: V7 backup file missing:" << v7BackupPath;
         return 1;
     }
-    qInfo() << "PASS: DataStore schema v6 and backup file verified:" << v6BackupPath;
+    qInfo() << "PASS: DataStore schema v7 and backup file verified:" << v7BackupPath;
 
     // Test cached_notes CRUD & SHA-256
     DataStore::instance().clearCachedNotes();
@@ -296,6 +299,144 @@ int runSelfTest()
         return 1;
     }
     qInfo() << "PASS: clearCachedNotes() successfully emptied cache.";
+
+    // Test notes_draft CRUD
+    DataStore::instance().clearNotesDraft();
+    const QString sampleDraft = QStringLiteral("Test quick capture draft");
+    const QString sampleTarget = QStringLiteral("timelog");
+    if (!DataStore::instance().saveNotesDraft(sampleDraft, sampleTarget))
+    {
+        qCritical() << "FAIL: saveNotesDraft failed:" << DataStore::instance().lastError();
+        return 1;
+    }
+    QString readDraftText;
+    QString readDraftTarget;
+    if (!DataStore::instance().getNotesDraft(&readDraftText, &readDraftTarget))
+    {
+        qCritical() << "FAIL: getNotesDraft failed for saved draft.";
+        return 1;
+    }
+    if (readDraftText != sampleDraft || readDraftTarget != sampleTarget)
+    {
+        qCritical() << "FAIL: getNotesDraft content mismatch:" << readDraftText << readDraftTarget;
+        return 1;
+    }
+    if (!DataStore::instance().clearNotesDraft())
+    {
+        qCritical() << "FAIL: clearNotesDraft failed.";
+        return 1;
+    }
+    if (DataStore::instance().getNotesDraft(&readDraftText, &readDraftTarget))
+    {
+        qCritical() << "FAIL: notes_draft still present after clearNotesDraft.";
+        return 1;
+    }
+    qInfo() << "PASS: notes_draft CRUD verified.";
+
+    // Test day_rules CRUD
+    DataStore::instance().seedDefaultDayRulesIfEmpty();
+    const QList<DayRuleItem> initialRules = DataStore::instance().dayRules();
+    if (initialRules.isEmpty())
+    {
+        qCritical() << "FAIL: seedDefaultDayRulesIfEmpty did not create default rules.";
+        return 1;
+    }
+    const QString customRuleTitle = QStringLiteral("Self-Test Custom Rule");
+    if (!DataStore::instance().addDayRule(customRuleTitle, 99))
+    {
+        qCritical() << "FAIL: addDayRule failed:" << DataStore::instance().lastError();
+        return 1;
+    }
+    const QList<DayRuleItem> afterAddRules = DataStore::instance().dayRules();
+    qint64 testRuleId = -1;
+    for (const DayRuleItem& item : afterAddRules)
+    {
+        if (item.title == customRuleTitle)
+        {
+            testRuleId = item.id;
+            break;
+        }
+    }
+    if (testRuleId < 0)
+    {
+        qCritical() << "FAIL: Added day rule not found in dayRules().";
+        return 1;
+    }
+    if (!DataStore::instance().toggleDayRule(testRuleId, true))
+    {
+        qCritical() << "FAIL: toggleDayRule failed.";
+        return 1;
+    }
+    const QList<DayRuleItem> afterToggleRules = DataStore::instance().dayRules();
+    bool toggledOk = false;
+    for (const DayRuleItem& item : afterToggleRules)
+    {
+        if (item.id == testRuleId && item.completed)
+        {
+            toggledOk = true;
+            break;
+        }
+    }
+    if (!toggledOk)
+    {
+        qCritical() << "FAIL: Day rule was not marked completed after toggleDayRule.";
+        return 1;
+    }
+    if (!DataStore::instance().resetDayRules())
+    {
+        qCritical() << "FAIL: resetDayRules failed.";
+        return 1;
+    }
+    for (const DayRuleItem& item : DataStore::instance().dayRules())
+    {
+        if (item.completed)
+        {
+            qCritical() << "FAIL: Day rule still completed after resetDayRules:" << item.title;
+            return 1;
+        }
+    }
+    qInfo() << "PASS: day_rules CRUD verified.";
+
+    // Test DataStore close() and open() persistence across reboot
+    const QString persistenceDraft = QStringLiteral("Persistent draft across restart");
+    DataStore::instance().saveNotesDraft(persistenceDraft, QStringLiteral("inbox"));
+    DataStore::instance().toggleDayRule(testRuleId, true);
+
+    DataStore::instance().close();
+    if (DataStore::instance().isOpen())
+    {
+        qCritical() << "FAIL: DataStore still reported open after close().";
+        return 1;
+    }
+    if (!DataStore::instance().open())
+    {
+        qCritical() << "FAIL: DataStore open() failed after close():" << DataStore::instance().lastError();
+        return 1;
+    }
+    QString reopenedDraft;
+    QString reopenedTarget;
+    if (!DataStore::instance().getNotesDraft(&reopenedDraft, &reopenedTarget) || reopenedDraft != persistenceDraft || reopenedTarget != QStringLiteral("inbox"))
+    {
+        qCritical() << "FAIL: notes_draft not preserved across DataStore close()/open():" << reopenedDraft;
+        return 1;
+    }
+    bool reopenedToggled = false;
+    for (const DayRuleItem& item : DataStore::instance().dayRules())
+    {
+        if (item.id == testRuleId && item.completed)
+        {
+            reopenedToggled = true;
+            break;
+        }
+    }
+    if (!reopenedToggled)
+    {
+        qCritical() << "FAIL: day_rules completion state not preserved across close()/open().";
+        return 1;
+    }
+    DataStore::instance().removeDayRule(testRuleId);
+    DataStore::instance().clearNotesDraft();
+    qInfo() << "PASS: DataStore close() and open() persistence across reopen verified.";
 
     // --- Stage 1B Self-Test: DeaveApiClient isolated local mock server ---
     {
@@ -451,6 +592,296 @@ int runSelfTest()
         qInfo() << "PASS: DeaveApiClient transfer timeout (300ms) aborted hanging connection in" << hangElapsed << "ms non-blockingly.";
     }
 
+    // --- Stage 3 Self-Test: NotesWidget and POST /api/v1/capture mock tests ---
+    {
+        QTcpServer captureServer;
+        if (!captureServer.listen(QHostAddress(QStringLiteral("127.0.0.1")), 0))
+        {
+            qCritical() << "FAIL: Could not bind captureServer on 127.0.0.1:0:" << captureServer.errorString();
+            return 1;
+        }
+
+        const quint16 capturePort = captureServer.serverPort();
+        const QString captureBaseUrl = QStringLiteral("http://127.0.0.1:%1").arg(capturePort);
+
+        QTemporaryFile tempTokenFile;
+        if (!tempTokenFile.open())
+        {
+            qCritical() << "FAIL: Could not create temporary token file for self-test.";
+            return 1;
+        }
+        tempTokenFile.write("stale_token_initial\n");
+        tempTokenFile.flush();
+        tempTokenFile.close();
+
+        const QString expectedValidToken = QStringLiteral("valid_token_rotated");
+        bool mock503Enabled = false;
+        QSet<QString> seenClientIds;
+        int captureRequestsCount = 0;
+
+        QObject::connect(&captureServer, &QTcpServer::newConnection, &captureServer, [&captureServer, &captureRequestsCount, &mock503Enabled, &expectedValidToken, &seenClientIds, &tempTokenFile]()
+        {
+            while (QTcpSocket* socket = captureServer.nextPendingConnection())
+            {
+                QObject::connect(socket, &QTcpSocket::readyRead, socket, [socket, &captureRequestsCount, &mock503Enabled, &expectedValidToken, &seenClientIds, &tempTokenFile]()
+                {
+                    const QByteArray requestData = socket->readAll();
+                    if (requestData.contains("GET /health"))
+                    {
+                        const QByteArray body = "{\"status\":\"ok\",\"api_version\":\"1\",\"env\":\"mock_env\"}";
+                        const QByteArray response = "HTTP/1.1 200 OK\r\n"
+                                                    "Content-Type: application/json\r\n"
+                                                    "Content-Length: " + QByteArray::number(body.size()) + "\r\n"
+                                                    "Connection: close\r\n\r\n" + body;
+                        socket->write(response);
+                        socket->flush();
+                        socket->disconnectFromHost();
+                        return;
+                    }
+
+                    if (requestData.contains("POST /api/v1/capture"))
+                    {
+                        captureRequestsCount++;
+
+                        if (mock503Enabled)
+                        {
+                            const QByteArray body = "{\"detail\":\"Capture service is disabled (CAPTURE_ENABLED=False).\"}";
+                            const QByteArray response = "HTTP/1.1 503 Service Unavailable\r\n"
+                                                        "Content-Type: application/json\r\n"
+                                                        "Content-Length: " + QByteArray::number(body.size()) + "\r\n"
+                                                        "Connection: close\r\n\r\n" + body;
+                            socket->write(response);
+                            socket->flush();
+                            socket->disconnectFromHost();
+                            return;
+                        }
+
+                        // Extract X-Deave-Token header
+                        QString receivedToken;
+                        const int headerIdx = requestData.indexOf("X-Deave-Token:");
+                        if (headerIdx >= 0)
+                        {
+                            const int endLine = requestData.indexOf("\r\n", headerIdx);
+                            if (endLine > headerIdx)
+                            {
+                                receivedToken = QString::fromLatin1(
+                                    requestData.mid(headerIdx + 14, endLine - (headerIdx + 14))
+                                ).trimmed();
+                            }
+                        }
+
+                        if (receivedToken != expectedValidToken)
+                        {
+                            // Stale or missing token: write the rotated fresh token to temp file so client can reload it!
+                            if (tempTokenFile.open())
+                            {
+                                tempTokenFile.resize(0);
+                                tempTokenFile.write(expectedValidToken.toUtf8() + "\n");
+                                tempTokenFile.flush();
+                                tempTokenFile.close();
+                            }
+
+                            const QByteArray body = "{\"detail\":\"Missing or invalid X-Deave-Token header.\"}";
+                            const QByteArray response = "HTTP/1.1 401 Unauthorized\r\n"
+                                                        "Content-Type: application/json\r\n"
+                                                        "Content-Length: " + QByteArray::number(body.size()) + "\r\n"
+                                                        "Connection: close\r\n\r\n" + body;
+                            socket->write(response);
+                            socket->flush();
+                            socket->disconnectFromHost();
+                            return;
+                        }
+
+                        // Valid token: parse JSON body
+                        const int bodyIdx = requestData.indexOf("\r\n\r\n");
+                        QByteArray bodyBytes;
+                        if (bodyIdx >= 0)
+                        {
+                            bodyBytes = requestData.mid(bodyIdx + 4);
+                        }
+                        const QJsonDocument doc = QJsonDocument::fromJson(bodyBytes);
+                        const QJsonObject obj = doc.isObject() ? doc.object() : QJsonObject();
+                        const QString clientId = obj.value(QStringLiteral("client_id")).toString();
+                        const QString target = obj.value(QStringLiteral("target")).toString();
+
+                        if (seenClientIds.contains(clientId))
+                        {
+                            // Duplicate request: return 200 OK with duplicated: true
+                            const QByteArray body = "{\"status\":\"ok\",\"client_id\":\"" + clientId.toUtf8() + "\","
+                                                    "\"target\":\"" + target.toUtf8() + "\",\"seq\":1,"
+                                                    "\"duplicated\":true,\"message\":\"Duplicate capture recorded.\"}";
+                            const QByteArray response = "HTTP/1.1 200 OK\r\n"
+                                                        "Content-Type: application/json\r\n"
+                                                        "Content-Length: " + QByteArray::number(body.size()) + "\r\n"
+                                                        "Connection: close\r\n\r\n" + body;
+                            socket->write(response);
+                            socket->flush();
+                            socket->disconnectFromHost();
+                            return;
+                        }
+
+                        seenClientIds.insert(clientId);
+                        const QByteArray body = "{\"status\":\"ok\",\"client_id\":\"" + clientId.toUtf8() + "\","
+                                                "\"target\":\"" + target.toUtf8() + "\",\"seq\":1,"
+                                                "\"duplicated\":false,\"message\":\"Captured to " + target.toUtf8() + ".\"}";
+                        const QByteArray response = "HTTP/1.1 201 Created\r\n"
+                                                    "Content-Type: application/json\r\n"
+                                                    "Content-Length: " + QByteArray::number(body.size()) + "\r\n"
+                                                    "Connection: close\r\n\r\n" + body;
+                        socket->write(response);
+                        socket->flush();
+                        socket->disconnectFromHost();
+                        return;
+                    }
+                });
+                QObject::connect(socket, &QTcpSocket::disconnected, socket, &QObject::deleteLater);
+            }
+        });
+
+        // 1. Direct DeaveApiClient test: fresh 201 Created and duplicate 200 OK
+        DeaveApiClient captureClient(captureBaseUrl);
+        captureClient.setTimeoutMs(500);
+
+        const QString testClientId = QStringLiteral("client-test-id-001");
+        QEventLoop freshLoop;
+        DeaveCaptureResult freshResult;
+        captureClient.captureNote(
+            QStringLiteral("inbox"),
+            QStringLiteral("Fresh note text"),
+            testClientId,
+            expectedValidToken,
+            [&freshLoop, &freshResult](const DeaveCaptureResult& res)
+            {
+                freshResult = res;
+                freshLoop.quit();
+            }
+        );
+        freshLoop.exec();
+
+        if (!freshResult.success || freshResult.httpStatusCode != 201 || freshResult.duplicated)
+        {
+            qCritical() << "FAIL: captureNote fresh request failed:" << freshResult.httpStatusCode << freshResult.errorMessage;
+            return 1;
+        }
+        qInfo() << "PASS: DeaveApiClient POST /api/v1/capture fresh 201 Created verified.";
+
+        // Duplicate request with exact same client_id
+        QEventLoop dupLoop;
+        DeaveCaptureResult dupResult;
+        captureClient.captureNote(
+            QStringLiteral("inbox"),
+            QStringLiteral("Duplicate attempt"),
+            testClientId,
+            expectedValidToken,
+            [&dupLoop, &dupResult](const DeaveCaptureResult& res)
+            {
+                dupResult = res;
+                dupLoop.quit();
+            }
+        );
+        dupLoop.exec();
+
+        if (!dupResult.success || dupResult.httpStatusCode != 200 || !dupResult.duplicated)
+        {
+            qCritical() << "FAIL: captureNote duplicate request failed:" << dupResult.httpStatusCode;
+            return 1;
+        }
+        qInfo() << "PASS: DeaveApiClient POST /api/v1/capture duplicate 200 OK verified.";
+
+        // 2. NotesWidget test: 401 token reload retry with QTemporaryFile
+        NotesWidget notesWidget;
+        notesWidget.setConfirmBeforeSend(false);
+        notesWidget.setApiBaseUrl(captureBaseUrl);
+        notesWidget.setApiTokenPath(tempTokenFile.fileName());
+
+        const QString initialNoteText = QStringLiteral("Note to test 401 reload and retry");
+        notesWidget.setDraftText(initialNoteText);
+        if (notesWidget.draftText() != initialNoteText)
+        {
+            qCritical() << "FAIL: notesWidget draft text not set properly.";
+            return 1;
+        }
+
+        // Trigger capture:
+        // Request 1 is sent with "stale_token_initial" -> mock server writes "valid_token_rotated" to file and returns 401.
+        // notesWidget receives 401 -> reloads token file -> sends Request 2 with "valid_token_rotated" -> returns 201.
+        // notesWidget receives 201 -> clears draft editor and clears SQLite draft!
+        captureRequestsCount = 0;
+        notesWidget.triggerCapture();
+
+        // Wait for draft to be cleared
+        for (int i = 0; i < 50; ++i)
+        {
+            QCoreApplication::processEvents();
+            if (notesWidget.draftText().isEmpty())
+            {
+                break;
+            }
+            QThread::msleep(20);
+        }
+
+        if (!notesWidget.draftText().isEmpty())
+        {
+            qCritical() << "FAIL: notesWidget draft text was not cleared after successful 401 retry.";
+            return 1;
+        }
+
+        QString checkDraft;
+        if (DataStore::instance().getNotesDraft(&checkDraft))
+        {
+            qCritical() << "FAIL: DataStore notes_draft was not cleared after successful capture:" << checkDraft;
+            return 1;
+        }
+        if (captureRequestsCount < 2)
+        {
+            qCritical() << "FAIL: Expected at least 2 capture requests (401 + retry), got:" << captureRequestsCount;
+            return 1;
+        }
+        qInfo() << "PASS: NotesWidget 401 token reload retry and draft clearing on 201 verified.";
+
+        // 3. NotesWidget test: Draft retention on 503 / server failure
+        mock503Enabled = true;
+        const QString retainedText = QStringLiteral("Important text that must NOT be lost on 503");
+        notesWidget.setDraftText(retainedText);
+
+        notesWidget.triggerCapture();
+        for (int i = 0; i < 20; ++i)
+        {
+            QCoreApplication::processEvents();
+            QThread::msleep(20);
+        }
+
+        if (notesWidget.draftText() != retainedText)
+        {
+            qCritical() << "FAIL: notesWidget draft text lost on 503 error:" << notesWidget.draftText();
+            return 1;
+        }
+        QString retainedDbDraft;
+        if (!DataStore::instance().getNotesDraft(&retainedDbDraft) || retainedDbDraft != retainedText)
+        {
+            qCritical() << "FAIL: DataStore notes_draft lost on 503 error:" << retainedDbDraft;
+            return 1;
+        }
+        qInfo() << "PASS: NotesWidget draft retention on 503 error verified.";
+
+        // Also test draft retention when server is closed
+        captureServer.close();
+        notesWidget.triggerCapture();
+        for (int i = 0; i < 20; ++i)
+        {
+            QCoreApplication::processEvents();
+            QThread::msleep(20);
+        }
+
+        if (notesWidget.draftText() != retainedText)
+        {
+            qCritical() << "FAIL: notesWidget draft text lost on server close:" << notesWidget.draftText();
+            return 1;
+        }
+        DataStore::instance().clearNotesDraft();
+        qInfo() << "PASS: NotesWidget draft retention on server close verified.";
+    }
+
     // Verify semester schedule until semesterEndDate()
     const QDate semEnd = DataStore::semesterEndDate();
     const QList<CalendarEvent> endEvents = DataStore::instance().calendarEventsBetween(semEnd, semEnd);
@@ -523,6 +954,18 @@ int runSelfTest()
             }
         }
         qInfo() << "PASS: Widget" << info.id << "size locked at" << w->size() << "across all screens.";
+
+        if (info.id == "notes")
+        {
+            if (initialSize != QSize(380, 420))
+            {
+                qCritical() << "FAIL: Widget notes size is" << initialSize << "expected QSize(380, 420).";
+                w->move(savedPos);
+                QCoreApplication::processEvents();
+                delete w;
+                return 1;
+            }
+        }
 
         if (auto* wisdom = dynamic_cast<DailyWisdomWidget*>(w))
         {
