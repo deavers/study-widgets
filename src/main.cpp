@@ -21,6 +21,7 @@
 #include "TimeLogWriter.h"
 #include "WidgetRegistry.h"
 #include "widgets/CalendarWidget.h"
+#include "widgets/DailyWisdomWidget.h"
 #include "widgets/PomodoroWidget.h"
 
 namespace {
@@ -226,6 +227,11 @@ int runSelfTest()
             qCritical() << "FAIL: Could not create widget:" << info.id;
             return 1;
         }
+        if (auto* wb = dynamic_cast<WidgetBase*>(w))
+        {
+            wb->setSavePrefsEnabled(false);
+        }
+        const QPoint savedPos = w->pos();
         w->show();
         QCoreApplication::processEvents();
 
@@ -236,11 +242,50 @@ int runSelfTest()
             if (w->size() != initialSize && info.id != "welcome") {
                 qCritical() << "FAIL: Widget" << info.id << "changed size on screen move:"
                             << initialSize << "->" << w->size();
+                w->move(savedPos);
+                QCoreApplication::processEvents();
                 delete w;
                 return 1;
             }
         }
         qInfo() << "PASS: Widget" << info.id << "size locked at" << w->size() << "across all screens.";
+
+        if (auto* wisdom = dynamic_cast<DailyWisdomWidget*>(w))
+        {
+            const int entries = wisdom->entryCount();
+            for (int eIdx = 0; eIdx < entries; ++eIdx)
+            {
+                for (int sIdx = 0; sIdx < 3; ++sIdx)
+                {
+                    wisdom->setOperatorState(sIdx, false);
+                    wisdom->showEntry(eIdx);
+                    QCoreApplication::processEvents();
+
+                    const QSize stateSize = wisdom->size();
+                    for (QScreen* scr : screens)
+                    {
+                        wisdom->move(scr->availableGeometry().center() - QPoint(wisdom->width() / 2, wisdom->height() / 2));
+                        QCoreApplication::processEvents();
+                        if (wisdom->size() != stateSize)
+                        {
+                            qCritical() << "FAIL: Widget daily_wisdom changed size on screen move:"
+                                        << "entry=" << eIdx << "state=" << sIdx
+                                        << "screen=" << scr->name()
+                                        << stateSize << "->" << wisdom->size();
+                            wisdom->move(savedPos);
+                            QCoreApplication::processEvents();
+                            delete w;
+                            return 1;
+                        }
+                    }
+                }
+            }
+            qInfo() << "PASS: Widget" << info.id << "verified across"
+                    << entries << "entries x 3 operator states x" << screens.size() << "screens.";
+        }
+
+        w->move(savedPos);
+        QCoreApplication::processEvents();
         w->hide();
         delete w;
     }

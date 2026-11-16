@@ -94,7 +94,7 @@ DailyWisdomWidget::DailyWisdomWidget(QWidget* parent)
     showEntry(QDate::currentDate().dayOfYear() % m_entries.size());
 
     QSettings settings;
-    setOperatorState(qBound(0, settings.value("daily_wisdom/operatorState", 0).toInt(), 2));
+    setOperatorState(qBound(0, settings.value("daily_wisdom/operatorState", 0).toInt(), 2), false);
 }
 
 void DailyWisdomWidget::buildContextMenu(QMenu* menu)
@@ -164,7 +164,8 @@ void DailyWisdomWidget::loadWisdomEntries()
 
 void DailyWisdomWidget::showEntry(int index)
 {
-    if (m_entries.isEmpty()) {
+    if (m_entries.isEmpty())
+    {
         return;
     }
     m_currentIndex = (index + m_entries.size()) % m_entries.size();
@@ -173,6 +174,7 @@ void DailyWisdomWidget::showEntry(int index)
     m_translationLabel->setText(e.translation);
     m_sourceLabel->setText(e.source);
     setChromeTitle(e.source, QString());
+    applyScaledFixedSize();
 }
 
 void DailyWisdomWidget::nextEntry()
@@ -180,13 +182,17 @@ void DailyWisdomWidget::nextEntry()
     showEntry(m_currentIndex + 1);
 }
 
-void DailyWisdomWidget::setOperatorState(int stateIndex)
+void DailyWisdomWidget::setOperatorState(int stateIndex, bool persist)
 {
     m_stateIndex = qBound(0, stateIndex, 2);
-    QSettings settings;
-    settings.setValue("daily_wisdom/operatorState", m_stateIndex);
+    if (persist)
+    {
+        QSettings settings;
+        settings.setValue("daily_wisdom/operatorState", m_stateIndex);
+    }
 
-    for (int i = 0; i < m_stateButtons.size(); ++i) {
+    for (int i = 0; i < m_stateButtons.size(); ++i)
+    {
         m_stateButtons[i]->setChecked(i == m_stateIndex);
     }
 
@@ -205,6 +211,7 @@ void DailyWisdomWidget::setOperatorState(int stateIndex)
     {
         m_stateHintLabel->setText(seed.wisdomAmanahHint);
     }
+    applyScaledFixedSize();
 }
 
 REGISTER_WIDGET("daily_wisdom", "Аят и хадис дня", DailyWisdomWidget)
