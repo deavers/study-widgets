@@ -1,6 +1,7 @@
 #pragma once
 
 #include <QMap>
+#include <QStringList>
 #include <QWidget>
 
 class QAction;
@@ -9,7 +10,7 @@ class QCloseEvent;
 class QPushButton;
 class QSystemTrayIcon;
 
-class ControlPanel : public QWidget 
+class ControlPanel : public QWidget
 {
 public:
     explicit ControlPanel(QWidget* parent = nullptr);
@@ -24,6 +25,9 @@ private:
 
     void createAndShowWidget(const QString& id);
     void setWidgetEnabled(const QString& id, bool enabled);
+    void applyWorkspaceProfile(const QStringList& enabledWidgetIds);
+    void applyGlobalScale(double scaleFactor);
+    void tileActiveWidgets();
 
     void showEnabledWidgets();
     void hideAllWidgets(bool showNotification = true);

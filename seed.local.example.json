@@ -1,0 +1,135 @@
+{
+  "$schema": "studywidgets.seed.v1",
+  "paths": {
+    "timeLogPath": "",
+    "quickInboxPath": "",
+    "obsidianVaultName": "",
+    "scheduleImagePath": "",
+    "scheduleBrowseDir": "",
+    "roadmapBrowseDir": "",
+    "defaultRoadmapPath": "",
+    "roadmaps": [
+      {
+        "label": "Project ROADMAP.md",
+        "shortLabel": "ROADMAP",
+        "path": "ROADMAP.md",
+        "syncDaily": false
+      }
+    ]
+  },
+  "ui": {
+    "studyProfileLabel": "🎓 Учёба",
+    "pomodoroTierALabel": "TIER A — ВЫСОКИЙ ПРИОРИТЕТ",
+    "pomodoroTierBLabel": "TIER B — СРЕДНИЙ ПРИОРИТЕТ",
+    "pomodoroTierCLabel": "TIER C · ПРОЕКТЫ · КУРСЫ",
+    "scheduleTitle": "Расписание",
+    "scheduleSubtitle": "Учёба",
+    "scheduleHeaderShort": "План",
+    "weekEvenLabel": "EVEN",
+    "weekOddLabel": "ODD",
+    "weekEvenShort": "E",
+    "weekOddShort": "O",
+    "calendarDialogExample": "14:00 Лекция / Практика",
+    "calendarQuickHint": "14:00 Лекция",
+    "goalsAutoSyncLabel": "↻ Синхронизировать авто-задачи и Roadmap",
+    "studyEventTag": "study",
+    "roadmapTaskPrefix": "🗺️ [Roadmap]",
+    "wisdomFlowHint": "Поток: радар чист. Лучшее окно для глубокой работы: ключевые проекты и сложные задачи.",
+    "wisdomAmanahHint": "Аманат и границы: эмпатия — дар, но твои тело и время тоже аманат. Помогай системно, не сжигая сон и приоритетные задачи."
+  },
+  "prayer": {
+    "cityName": "По умолчанию",
+    "presetName": "Standard 12° (UOIF)",
+    "latitude": 50.08,
+    "longitude": 14.43,
+    "elevation": 200.0,
+    "methods": [
+      {
+        "menuLabel": "8° коррекция",
+        "badgeLabel": "8° Корр.",
+        "fajrAngle": 8.0,
+        "ishaAngle": 8.0,
+        "tuneFajr": 0,
+        "tuneSunrise": 0,
+        "tuneDhuhr": 2,
+        "tuneAsr": 0,
+        "tuneMaghrib": 2,
+        "tuneIsha": 0
+      },
+      {
+        "menuLabel": "12° UOIF",
+        "badgeLabel": "12° UOIF",
+        "fajrAngle": 12.0,
+        "ishaAngle": 12.0,
+        "tuneFajr": 0,
+        "tuneSunrise": 0,
+        "tuneDhuhr": 2,
+        "tuneAsr": 0,
+        "tuneMaghrib": 2,
+        "tuneIsha": 0
+      },
+      {
+        "menuLabel": "12° UOIF + Tune",
+        "badgeLabel": "12°+Tune",
+        "fajrAngle": 12.0,
+        "ishaAngle": 12.0,
+        "tuneFajr": -9,
+        "tuneSunrise": -4,
+        "tuneDhuhr": 6,
+        "tuneAsr": 3,
+        "tuneMaghrib": 0,
+        "tuneIsha": 10
+      },
+      {
+        "menuLabel": "8° + Tune",
+        "badgeLabel": "8°+Tune",
+        "fajrAngle": 8.0,
+        "ishaAngle": 8.0,
+        "tuneFajr": -9,
+        "tuneSunrise": -4,
+        "tuneDhuhr": 6,
+        "tuneAsr": 3,
+        "tuneMaghrib": 0,
+        "tuneIsha": 10
+      }
+    ]
+  },
+  "goals": [
+    { "horizon": "day", "title": "2×45m Спринт по приоритетной задаче", "target": 2, "current": 0 },
+    { "horizon": "week", "title": "Закрыть все практики и конспекты недели", "target": 4, "current": 0 },
+    { "horizon": "month", "title": "Продвинуть основной технический проект", "target": 8, "current": 0 },
+    { "horizon": "year", "title": "Выполнить годовой учебный план", "target": 30, "current": 0 }
+  ],
+  "spacedReviews": [
+    { "categoryId": "subject-example-1", "topic": "Пример повторения: ключевые понятия и практика", "kind": "cviceni" },
+    { "categoryId": "subject-example-2", "topic": "Пример повторения: разбор базовой темы", "kind": "prednaska" }
+  ],
+  "calendarEvents": [
+    { "dayOffset": 0, "title": "Фокус-спринт по предмету 1", "time": "16:30", "tag": "study" },
+    { "dayOffset": 1, "title": "Подготовка к практическому занятию", "time": "09:00", "tag": "deadline" }
+  ],
+  "semester": {
+    "startDate": "2026-09-14",
+    "teachingEndDate": "2026-12-18",
+    "endDate": "2027-01-31",
+    "teachingDays": {
+      "1": { "time": "18:00", "text": "📌 Повторение материала (Пн): разбор лекции и практики" }
+    },
+    "examDays": {
+      "1": { "time": "10:00", "text": "📌 Повторение к сессии (Пн): прогон ключевых тем" }
+    },
+    "horizonGoals": [
+      { "horizon": "week", "title": "📌 Закрепить все ключевые темы недели", "target": 5, "current": 0, "sortOrder": 1 },
+      { "horizon": "month", "title": "🛠️ Завершить практический модуль месяца", "target": 8, "current": 0, "sortOrder": 1 },
+      { "horizon": "year", "title": "🎯 Закрыть годовую программу обучения", "target": 24, "current": 0, "sortOrder": 1 }
+    ]
+  },
+  "dailyCurriculum": {
+    "anchorDate": "2026-11-09",
+    "defaultTime": "19:30",
+    "items": [
+      "🛠️ [Практика • День 1] Разобрать ключевую концепцию и написать небольшой тест-пример",
+      "🛠️ [Практика • День 2] Повторить сложные места из конспекта и закрепить задачами"
+    ]
+  }
+}
