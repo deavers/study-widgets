@@ -279,6 +279,146 @@ private:
     QSet<QDate> m_studyDates;
 };
 
+class ActivePageStackedWidget : public QStackedWidget
+{
+public:
+    explicit ActivePageStackedWidget(QWidget* parent = nullptr)
+        : QStackedWidget(parent)
+    {
+    }
+
+    QSize sizeHint() const override
+    {
+        QWidget* cur = currentWidget();
+        return cur ? cur->sizeHint() : QStackedWidget::sizeHint();
+    }
+
+    QSize minimumSizeHint() const override
+    {
+        QWidget* cur = currentWidget();
+        return cur ? cur->minimumSizeHint() : QStackedWidget::minimumSizeHint();
+    }
+
+    bool hasHeightForWidth() const override
+    {
+        QWidget* cur = currentWidget();
+        return cur ? cur->hasHeightForWidth() : QStackedWidget::hasHeightForWidth();
+    }
+
+    int heightForWidth(int width) const override
+    {
+        QWidget* cur = currentWidget();
+        return cur ? cur->heightForWidth(width) : QStackedWidget::heightForWidth(width);
+    }
+};
+
+class ContentAwareScrollArea : public QScrollArea
+{
+public:
+    explicit ContentAwareScrollArea(int maxMinHeight = 160, QWidget* parent = nullptr)
+        : QScrollArea(parent)
+        , m_maxMinHeight(maxMinHeight)
+    {
+        setWidgetResizable(true);
+        setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
+        setFrameShape(QFrame::NoFrame);
+    }
+
+    QSize sizeHint() const override
+    {
+        return minimumSizeHint();
+    }
+
+    QSize minimumSizeHint() const override
+    {
+        if (!widget() || !widget()->layout())
+        {
+            return QScrollArea::minimumSizeHint();
+        }
+        return computeContentSize(-1);
+    }
+
+    bool hasHeightForWidth() const override
+    {
+        QWidget* w = widget();
+        return (w && w->layout()) ? true : QScrollArea::hasHeightForWidth();
+    }
+
+    int heightForWidth(int width) const override
+    {
+        if (!widget() || !widget()->layout())
+        {
+            return QScrollArea::heightForWidth(width);
+        }
+        return computeContentSize(width).height();
+    }
+
+private:
+    QSize computeContentSize(int targetWidth) const
+    {
+        QWidget* w = widget();
+        if (!w || !w->layout())
+        {
+            return QSize(120, 16);
+        }
+        w->ensurePolished();
+        QLayout* lay = w->layout();
+        const QMargins layM = lay->contentsMargins();
+        const int marginW = contentsMargins().left() + contentsMargins().right() + frameWidth() * 2 + layM.left() + layM.right();
+        const int marginH = contentsMargins().top() + contentsMargins().bottom() + frameWidth() * 2 + layM.top() + layM.bottom();
+        const int innerW = targetWidth > 0 ? qMax(100, targetWidth - marginW) : 240;
+
+        int totalMinW = 120;
+        int totalH = 0;
+        int visibleItems = 0;
+
+        for (int i = 0; i < lay->count(); ++i)
+        {
+            QLayoutItem* item = lay->itemAt(i);
+            QWidget* cw = item ? item->widget() : nullptr;
+            if (!cw)
+            {
+                continue;
+            }
+            cw->ensurePolished();
+            if (QLayout* cLay = cw->layout())
+            {
+                cLay->invalidate();
+                cLay->activate();
+            }
+
+            const QSize cwMin = cw->layout() ? cw->layout()->totalMinimumSize() : cw->minimumSizeHint();
+            totalMinW = qMax(totalMinW, cwMin.width());
+
+            int itemH = cwMin.height();
+            if (targetWidth > 0)
+            {
+                if (cw->hasHeightForWidth())
+                {
+                    itemH = qMax(itemH, cw->heightForWidth(innerW));
+                }
+                else if (cw->layout() && cw->layout()->hasHeightForWidth())
+                {
+                    itemH = qMax(itemH, cw->layout()->totalMinimumHeightForWidth(innerW));
+                }
+            }
+            totalH += qMax(16, itemH);
+            ++visibleItems;
+        }
+
+        if (visibleItems > 1)
+        {
+            totalH += lay->spacing() * (visibleItems - 1);
+        }
+
+        const int minW = qBound(120, totalMinW + marginW, 220);
+        const int minH = qBound(16, totalH + marginH, m_maxMinHeight);
+        return QSize(minW, minH);
+    }
+
+    int m_maxMinHeight = 160;
+};
+
 } // namespace
 
 CalendarWidget::CalendarWidget(QWidget* parent)
@@ -295,6 +435,8 @@ CalendarWidget::CalendarWidget(QWidget* parent)
     topRow->setSpacing(4);
 
     m_headerLabel = new QLabel();
+    m_headerLabel->setMinimumWidth(48);
+    m_headerLabel->setSizePolicy(QSizePolicy::Ignored, QSizePolicy::Preferred);
     m_headerLabel->setFont(Theme::fontMono(10, QFont::Bold));
     m_headerLabel->setStyleSheet(QStringLiteral("color: %1;").arg(Theme::textColor().name()));
     topRow->addWidget(m_headerLabel, 1);
@@ -340,7 +482,7 @@ CalendarWidget::CalendarWidget(QWidget* parent)
     bodyLayout()->addLayout(topRow);
 
     // 2. Stacked Views (Today/Tomorrow | Week | Month)
-    m_stack = new QStackedWidget(this);
+    m_stack = new ActivePageStackedWidget(this);
 
     // --- Page 0: Today / Tomorrow ---
     auto* pageDays = new QWidget();
@@ -348,16 +490,14 @@ CalendarWidget::CalendarWidget(QWidget* parent)
     pageDaysLayout->setContentsMargins(0, 0, 0, 0);
     pageDaysLayout->setSpacing(0);
 
-    auto* daysScroll = new QScrollArea();
-    daysScroll->setWidgetResizable(true);
-    daysScroll->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
+    m_daysScroll = new ContentAwareScrollArea(140);
     m_daysContainer = new QWidget();
     m_daysContainer->setStyleSheet("background: transparent;");
     m_daysLayout = new QVBoxLayout(m_daysContainer);
     m_daysLayout->setContentsMargins(0, 0, 2, 0);
     m_daysLayout->setSpacing(5);
-    daysScroll->setWidget(m_daysContainer);
-    pageDaysLayout->addWidget(daysScroll, 1);
+    m_daysScroll->setWidget(m_daysContainer);
+    pageDaysLayout->addWidget(m_daysScroll, 1);
     m_stack->addWidget(pageDays);
 
     // --- Page 1: Week ---
@@ -372,20 +512,20 @@ CalendarWidget::CalendarWidget(QWidget* parent)
     pageWeekLayout->addWidget(weekStrip);
 
     m_weekDayHeaderLabel = new QLabel();
+    m_weekDayHeaderLabel->setWordWrap(true);
+    m_weekDayHeaderLabel->setMinimumWidth(0);
     m_weekDayHeaderLabel->setProperty("role", "monoDim");
     m_weekDayHeaderLabel->setStyleSheet("font-size: 10px;");
     pageWeekLayout->addWidget(m_weekDayHeaderLabel);
 
-    auto* weekScroll = new QScrollArea();
-    weekScroll->setWidgetResizable(true);
-    weekScroll->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
+    m_weekScroll = new ContentAwareScrollArea(92);
     m_weekEventsContainer = new QWidget();
     m_weekEventsContainer->setStyleSheet("background: transparent;");
     m_weekEventsLayout = new QVBoxLayout(m_weekEventsContainer);
     m_weekEventsLayout->setContentsMargins(0, 0, 2, 0);
     m_weekEventsLayout->setSpacing(4);
-    weekScroll->setWidget(m_weekEventsContainer);
-    pageWeekLayout->addWidget(weekScroll, 1);
+    m_weekScroll->setWidget(m_weekEventsContainer);
+    pageWeekLayout->addWidget(m_weekScroll, 1);
     m_stack->addWidget(pageWeek);
 
     // --- Page 2: Month ---
@@ -400,6 +540,8 @@ CalendarWidget::CalendarWidget(QWidget* parent)
     pageMonthLayout->addWidget(monthGrid, 1);
 
     m_monthSelectedSummary = new QLabel();
+    m_monthSelectedSummary->setWordWrap(true);
+    m_monthSelectedSummary->setMinimumWidth(0);
     m_monthSelectedSummary->setProperty("role", "monoDim");
     m_monthSelectedSummary->setStyleSheet("font-size: 10px;");
     pageMonthLayout->addWidget(m_monthSelectedSummary);
@@ -412,6 +554,7 @@ CalendarWidget::CalendarWidget(QWidget* parent)
     addRow->setSpacing(5);
 
     m_quickInput = new QLineEdit();
+    m_quickInput->setMinimumWidth(0);
     m_quickInput->setFixedHeight(24);
     m_quickInput->setStyleSheet("QLineEdit { padding: 2px 7px; font-size: 11px; border-radius: 6px; }");
 
@@ -455,8 +598,111 @@ void CalendarWidget::setViewMode(ViewMode mode)
     m_modeWeekBtn->setChecked(mode == ViewMode::Week);
     m_modeMonthBtn->setChecked(mode == ViewMode::Month);
 
-    m_stack->setCurrentIndex(static_cast<int>(mode));
+    const int activeIdx = static_cast<int>(mode);
+    for (int i = 0; i < m_stack->count(); ++i)
+    {
+        if (QWidget* page = m_stack->widget(i))
+        {
+            const bool active = (i == activeIdx);
+            page->setSizePolicy(
+                active ? QSizePolicy::Preferred : QSizePolicy::Ignored,
+                active ? QSizePolicy::Preferred : QSizePolicy::Ignored
+            );
+            page->updateGeometry();
+        }
+    }
+
+    m_stack->setCurrentIndex(activeIdx);
+    m_stack->updateGeometry();
     refreshAll();
+}
+
+QSize CalendarWidget::effectiveMinimumSizeForWidth(int targetWidth) const
+{
+    if (isCompact())
+    {
+        return WidgetBase::effectiveMinimumSizeForWidth(targetWidth);
+    }
+
+    ensurePolished();
+    if (m_daysLayout)
+    {
+        m_daysLayout->invalidate();
+    }
+    if (m_weekEventsLayout)
+    {
+        m_weekEventsLayout->invalidate();
+    }
+    if (m_stack && m_stack->layout())
+    {
+        m_stack->layout()->invalidate();
+    }
+    if (bodyLayout())
+    {
+        bodyLayout()->invalidate();
+    }
+    if (layout())
+    {
+        layout()->invalidate();
+    }
+
+    const QSize baseMin = minimumSizeHint();
+    const int minW = qMax(220, baseMin.width());
+    const int targetW = qMax(minW, targetWidth > 0 ? targetWidth : minW);
+
+    const QMargins rootM = layout() ? layout()->contentsMargins() : contentsMargins();
+    const QMargins bodyM = bodyLayout() ? bodyLayout()->contentsMargins() : QMargins();
+    const int bodyW = qMax(100, targetW - rootM.left() - rootM.right() - bodyM.left() - bodyM.right());
+    const int bodySpacing = bodyLayout() ? bodyLayout()->spacing() : 5;
+
+    int nonStackH = rootM.top() + rootM.bottom() + bodyM.top() + bodyM.bottom();
+    const int topH = m_modeDaysBtn ? qMax(20, m_modeDaysBtn->minimumHeight()) : 20;
+    const int addH = m_quickInput ? qMax(24, m_quickInput->minimumHeight()) : 24;
+    nonStackH += topH + addH + bodySpacing * 2;
+
+    int pageH = 0;
+    if (m_mode == ViewMode::TodayTomorrow && m_daysScroll)
+    {
+        pageH = m_daysScroll->hasHeightForWidth()
+                    ? m_daysScroll->heightForWidth(bodyW)
+                    : m_daysScroll->minimumSizeHint().height();
+    }
+    else if (m_mode == ViewMode::Week)
+    {
+        QWidget* pageWeek = m_stack ? m_stack->widget(static_cast<int>(ViewMode::Week)) : nullptr;
+        const int pageSpacing = (pageWeek && pageWeek->layout()) ? pageWeek->layout()->spacing() : 4;
+        const int stripH = m_weekStripWidget ? qMax(46, m_weekStripWidget->minimumHeight()) : 46;
+        int dayHdrH = 16;
+        if (m_weekDayHeaderLabel)
+        {
+            dayHdrH = m_weekDayHeaderLabel->hasHeightForWidth()
+                          ? qMax(14, m_weekDayHeaderLabel->heightForWidth(bodyW))
+                          : m_weekDayHeaderLabel->minimumSizeHint().height();
+        }
+        const int scrollH = m_weekScroll
+                                ? (m_weekScroll->hasHeightForWidth()
+                                       ? m_weekScroll->heightForWidth(bodyW)
+                                       : m_weekScroll->minimumSizeHint().height())
+                                : 16;
+        pageH = stripH + dayHdrH + scrollH + pageSpacing * 2;
+    }
+    else if (m_mode == ViewMode::Month)
+    {
+        QWidget* pageMonth = m_stack ? m_stack->widget(static_cast<int>(ViewMode::Month)) : nullptr;
+        const int pageSpacing = (pageMonth && pageMonth->layout()) ? pageMonth->layout()->spacing() : 3;
+        const int gridH = m_monthGridWidget ? qMax(132, m_monthGridWidget->minimumHeight()) : 132;
+        int sumH = 16;
+        if (m_monthSelectedSummary)
+        {
+            sumH = m_monthSelectedSummary->hasHeightForWidth()
+                       ? qMax(14, m_monthSelectedSummary->heightForWidth(bodyW))
+                       : m_monthSelectedSummary->minimumSizeHint().height();
+        }
+        pageH = gridH + sumH + pageSpacing;
+    }
+
+    const int minH = qMax(baseMin.height(), nonStackH + pageH);
+    return QSize(minW, minH);
 }
 
 void CalendarWidget::stepPeriod(int delta)
@@ -590,6 +836,49 @@ void CalendarWidget::refreshAll()
     } else {
         refreshMonthView();
     }
+
+    if (m_daysLayout)
+    {
+        m_daysLayout->invalidate();
+    }
+    if (m_weekEventsLayout)
+    {
+        m_weekEventsLayout->invalidate();
+    }
+    if (m_daysContainer)
+    {
+        m_daysContainer->updateGeometry();
+    }
+    if (m_weekEventsContainer)
+    {
+        m_weekEventsContainer->updateGeometry();
+    }
+    if (m_daysScroll)
+    {
+        m_daysScroll->updateGeometry();
+    }
+    if (m_weekScroll)
+    {
+        m_weekScroll->updateGeometry();
+    }
+    if (m_stack)
+    {
+        if (m_stack->layout())
+        {
+            m_stack->layout()->invalidate();
+        }
+        m_stack->updateGeometry();
+    }
+    if (bodyLayout())
+    {
+        bodyLayout()->invalidate();
+    }
+    if (layout())
+    {
+        layout()->invalidate();
+    }
+    updateGeometry();
+    applyScaledFixedSize();
 }
 
 void CalendarWidget::refreshHeader()
@@ -618,6 +907,8 @@ void CalendarWidget::refreshTodayTomorrowView()
 {
     while (QLayoutItem* item = m_daysLayout->takeAt(0)) {
         if (QWidget* w = item->widget()) {
+            w->hide();
+            w->setParent(nullptr);
             w->deleteLater();
         }
         delete item;
@@ -639,6 +930,8 @@ void CalendarWidget::refreshTodayTomorrowView()
         auto* head = new QHBoxLayout();
         auto* title = new QLabel(QString("%1 · %2 %3")
                                      .arg(prefix, shortDayNameRu(d.dayOfWeek()), d.toString("dd.MM")));
+        title->setWordWrap(true);
+        title->setMinimumWidth(0);
         title->setFont(Theme::fontMono(10, QFont::Bold));
         title->setStyleSheet(QStringLiteral("color: %1;")
                                  .arg(d == today ? Theme::accentColor().name() : Theme::textColor().name()));
@@ -663,6 +956,7 @@ void CalendarWidget::refreshTodayTomorrowView()
                 : QString("[%1] %2").arg(ev.timeText, ev.title);
             auto* lbl = new QLabel(labelTxt);
             lbl->setWordWrap(true);
+            lbl->setMinimumWidth(0);
             lbl->setStyleSheet(ev.completed
                                    ? "color: #7B819F; text-decoration: line-through; font-size: 11px;"
                                    : "color: #EEF0F8; font-size: 11px;");
@@ -704,10 +998,13 @@ void CalendarWidget::refreshTodayTomorrowView()
                                             ? QString::fromUtf8("Цель дня (%1): %2").arg(openGoals).arg(firstOpen)
                                             : QString::fromUtf8("Событий нет · день свободен"));
                 hint->setWordWrap(true);
+                hint->setMinimumWidth(0);
                 hint->setStyleSheet("color: #A9AFC9; font-size: 10px;");
                 lay->addWidget(hint);
             } else {
                 auto* empty = new QLabel(QString::fromUtf8("Нет запланированных событий"));
+                empty->setWordWrap(true);
+                empty->setMinimumWidth(0);
                 empty->setStyleSheet("color: #7B819F; font-size: 10px;");
                 lay->addWidget(empty);
             }
@@ -719,8 +1016,15 @@ void CalendarWidget::refreshTodayTomorrowView()
     const QString label0 = (d0 == today) ? QString::fromUtf8("СЕГОДНЯ") : QString::fromUtf8("ДЕНЬ 1");
     const QString label1 = (d1 == today.addDays(1)) ? QString::fromUtf8("ЗАВТРА") : QString::fromUtf8("ДЕНЬ 2");
 
-    m_daysLayout->addWidget(buildDayCard(d0, label0));
-    m_daysLayout->addWidget(buildDayCard(d1, label1));
+    auto* card0 = buildDayCard(d0, label0);
+    m_daysLayout->addWidget(card0);
+    card0->ensurePolished();
+    card0->show();
+
+    auto* card1 = buildDayCard(d1, label1);
+    m_daysLayout->addWidget(card1);
+    card1->ensurePolished();
+    card1->show();
     m_daysLayout->addStretch();
 }
 
@@ -749,6 +1053,8 @@ void CalendarWidget::refreshWeekView()
 
     while (QLayoutItem* item = m_weekEventsLayout->takeAt(0)) {
         if (QWidget* w = item->widget()) {
+            w->hide();
+            w->setParent(nullptr);
             w->deleteLater();
         }
         delete item;
@@ -768,6 +1074,7 @@ void CalendarWidget::refreshWeekView()
         const QString txt = ev.timeText.isEmpty() ? ev.title : QString("[%1] %2").arg(ev.timeText, ev.title);
         auto* lbl = new QLabel(txt);
         lbl->setWordWrap(true);
+        lbl->setMinimumWidth(0);
         lbl->setStyleSheet(ev.completed
                                ? "color: #7B819F; text-decoration: line-through; font-size: 11px;"
                                : "color: #EEF0F8; font-size: 11px;");
@@ -782,6 +1089,8 @@ void CalendarWidget::refreshWeekView()
         row->addWidget(lbl, 1);
         row->addWidget(del);
         m_weekEventsLayout->addWidget(rowWidget);
+        rowWidget->ensurePolished();
+        rowWidget->show();
 
         const qint64 id = ev.id;
         connect(cb, &QCheckBox::toggled, this, [this, id](bool checked) {
@@ -795,10 +1104,14 @@ void CalendarWidget::refreshWeekView()
     }
 
     if (dayEvents.isEmpty()) {
-        auto* empty = new QLabel(QString::fromUtf8("На %1 событий нет. Добавьте внизу ↓")
+        auto* empty = new QLabel(QString::fromUtf8("На %1 событий нет ↓")
                                      .arg(m_selectedDate.toString("dd.MM")));
-        empty->setStyleSheet("color: #7B819F; font-size: 10px; padding: 4px 2px;");
+        empty->setWordWrap(true);
+        empty->setMinimumWidth(0);
+        empty->setStyleSheet("color: #7B819F; font-size: 10px; padding: 2px 2px;");
         m_weekEventsLayout->addWidget(empty);
+        empty->ensurePolished();
+        empty->show();
     }
 
     m_weekEventsLayout->addStretch();

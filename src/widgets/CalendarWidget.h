@@ -10,6 +10,7 @@
 class QLabel;
 class QLineEdit;
 class QPushButton;
+class QScrollArea;
 class QStackedWidget;
 class QTimer;
 class QVBoxLayout;
@@ -27,6 +28,8 @@ public:
 
     void setViewMode(ViewMode mode);
     ViewMode viewMode() const { return m_mode; }
+    void selectDate(const QDate& date);
+    QSize effectiveMinimumSizeForWidth(int targetWidth = -1) const override;
 
 protected:
     void buildContextMenu(QMenu* menu) override;
@@ -35,7 +38,6 @@ protected:
 private:
     void stepPeriod(int delta);
     void jumpToToday();
-    void selectDate(const QDate& date);
     void addEventFromInput();
     void promptAddEventDialog();
     void refreshAll();
@@ -59,12 +61,14 @@ private:
     QStackedWidget* m_stack = nullptr;
 
     // Page 0: Today / Tomorrow
+    QScrollArea* m_daysScroll = nullptr;
     QWidget* m_daysContainer = nullptr;
     QVBoxLayout* m_daysLayout = nullptr;
 
     // Page 1: Week
     QWidget* m_weekStripWidget = nullptr;
     QLabel* m_weekDayHeaderLabel = nullptr;
+    QScrollArea* m_weekScroll = nullptr;
     QWidget* m_weekEventsContainer = nullptr;
     QVBoxLayout* m_weekEventsLayout = nullptr;
 
