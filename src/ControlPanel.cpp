@@ -337,13 +337,12 @@ void ControlPanel::setupWidgetControls()
     if (!settings.contains("widgets/spaced_rep_hidden_v4")) {
         settings.setValue("widgets/spaced_rep_hidden_v4", true);
         settings.setValue("widgets/spaced_rep/enabled", false);
-        settings.setValue("widgets/welcome/enabled", false);
     }
 
     for (const WidgetInfo& widgetInfo : widgetRegistry()) {
         auto* checkBox = new QCheckBox(widgetInfo.displayName);
 
-        const bool defaultEnabled = (widgetInfo.id != "welcome" && widgetInfo.id != "spaced_rep");
+        const bool defaultEnabled = (widgetInfo.id != "spaced_rep");
         const bool enabled = settings.value(
             "widgets/" + widgetInfo.id + "/enabled",
             defaultEnabled
@@ -595,6 +594,12 @@ void ControlPanel::showControlPanel()
     showNormal();
     raise();
     activateWindow();
+}
+
+void ControlPanel::activateFromSecondInstance()
+{
+    showEnabledWidgets();
+    showControlPanel();
 }
 
 void ControlPanel::showTrayMessage(

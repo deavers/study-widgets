@@ -14,7 +14,7 @@ week parity, statistics, and future biometric / local-AI integrations.
 
 The current version provides the first working application shell:
 
-- Frameless, rounded desktop-style `WelcomeWidget`
+- Frameless, rounded desktop widgets
 - Mouse drag-to-move behavior
 - Widget position persistence through `QSettings`
 - Plugin-style `WidgetRegistry`
@@ -91,8 +91,6 @@ src/
 ├── ControlPanel.h
 ├── ControlPanel.cpp
 └── widgets/
-    ├── WelcomeWidget.h
-    ├── WelcomeWidget.cpp
     ├── PomodoroWidget.h
     └── PomodoroWidget.cpp
 ```
@@ -116,9 +114,9 @@ Widgets self-register through a small macro:
 
 ```cpp
 REGISTER_WIDGET(
-    "welcome",
-    "Welcome widget",
-    WelcomeWidget
+    "pomodoro",
+    "Pomodoro focus timer",
+    PomodoroWidget
 )
 ```
 

@@ -6,7 +6,7 @@ set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_AUTOMOC ON)
 
-find_package(Qt6 REQUIRED COMPONENTS Widgets Sql Multimedia)
+find_package(Qt6 REQUIRED COMPONENTS Widgets Sql Multimedia Network)
 
 add_executable(StudyWidgets WIN32
     src/main.cpp
@@ -27,8 +27,6 @@ add_executable(StudyWidgets WIN32
     src/DataStore.cpp
     src/CategoryConfigLoader.h
     src/CategoryConfigLoader.cpp
-    src/CategoryManagerDialog.h
-    src/CategoryManagerDialog.cpp
     src/ControlPanel.h
     src/ControlPanel.cpp
     src/ui/GlassWindow.h
@@ -38,8 +36,6 @@ add_executable(StudyWidgets WIN32
     src/ui/FlowLayout.cpp
     src/ui/SubjectTile.h
     src/ui/SubjectTile.cpp
-    src/widgets/WelcomeWidget.h
-    src/widgets/WelcomeWidget.cpp
     src/widgets/PomodoroWidget.h
     src/widgets/PomodoroWidget.cpp
     src/widgets/ScheduleWidget.h
@@ -68,6 +64,7 @@ target_link_libraries(
         Qt6::Widgets
         Qt6::Sql
         Qt6::Multimedia
+        Qt6::Network
         dwmapi
         iphlpapi
 )

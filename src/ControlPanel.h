@@ -16,6 +16,8 @@ public:
     explicit ControlPanel(QWidget* parent = nullptr);
     ~ControlPanel() override;
 
+    void activateFromSecondInstance();
+
 protected:
     void closeEvent(QCloseEvent* event) override;
 
