@@ -31,7 +31,10 @@ QString quickInboxPath()
         {
             return QDir(configured).filePath(QStringLiteral("Quick_Inbox.md"));
         }
-        return configured;
+        if (info.dir().exists())
+        {
+            return configured;
+        }
     }
     return QDir(DataStore::instance().appDataDir()).filePath(QStringLiteral("Quick_Inbox.md"));
 }
@@ -126,9 +129,7 @@ GoalsWidget::GoalsWidget(QWidget* parent)
         const QString line =
             QString("- [%1] %2\n").arg(QDateTime::currentDateTime().toString("yyyy-MM-dd HH:mm"), note);
 
-        const QString targetPath = quickInboxPath();
-        QFileInfo(targetPath).dir().mkpath(QStringLiteral("."));
-        QFile f(targetPath);
+        QFile f(quickInboxPath());
         if (f.open(QIODevice::Append | QIODevice::Text))
         {
             QTextStream out(&f);

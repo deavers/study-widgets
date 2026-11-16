@@ -27,8 +27,6 @@ add_executable(StudyWidgets WIN32
     src/DataStore.cpp
     src/CategoryConfigLoader.h
     src/CategoryConfigLoader.cpp
-    src/CategoryManagerDialog.h
-    src/CategoryManagerDialog.cpp
     src/ControlPanel.h
     src/ControlPanel.cpp
     src/ui/GlassWindow.h
@@ -38,8 +36,6 @@ add_executable(StudyWidgets WIN32
     src/ui/FlowLayout.cpp
     src/ui/SubjectTile.h
     src/ui/SubjectTile.cpp
-    src/widgets/WelcomeWidget.h
-    src/widgets/WelcomeWidget.cpp
     src/widgets/PomodoroWidget.h
     src/widgets/PomodoroWidget.cpp
     src/widgets/ScheduleWidget.h

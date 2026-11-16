@@ -20,7 +20,7 @@ Legend:
 - [x] `WidgetBase`: frameless rounded desktop card
 - [x] Mouse drag-to-move behavior
 - [x] QSettings widget-position persistence
-- [x] `WelcomeWidget`: first working widget
+- [x] First working desktop widget
 - [x] Plugin-style `WidgetRegistry`
 - [x] Registry-based widget creation
 - [x] Basic project architecture documentation

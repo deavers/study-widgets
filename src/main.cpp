@@ -239,7 +239,7 @@ int runSelfTest()
         for (QScreen* scr : screens) {
             w->move(scr->availableGeometry().center() - QPoint(w->width() / 2, w->height() / 2));
             QCoreApplication::processEvents();
-            if (w->size() != initialSize && info.id != "welcome") {
+            if (w->size() != initialSize) {
                 qCritical() << "FAIL: Widget" << info.id << "changed size on screen move:"
                             << initialSize << "->" << w->size();
                 w->move(savedPos);
@@ -360,7 +360,6 @@ int main(int argc, char* argv[])
         QDir().mkpath(outDir);
 
         for (const WidgetInfo& info : widgetRegistry()) {
-            if (info.id == "welcome") continue;
             QWidget* w = createWidgetById(info.id);
             if (!w) continue;
             w->show();
