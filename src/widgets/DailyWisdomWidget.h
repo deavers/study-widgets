@@ -20,15 +20,17 @@ public:
 
     explicit DailyWisdomWidget(QWidget* parent = nullptr);
 
+    int entryCount() const { return m_entries.size(); }
+    void showEntry(int index);
+    void setOperatorState(int stateIndex, bool persist = true);
+
 protected:
     void buildContextMenu(QMenu* menu) override;
 
 private:
     void loadWisdomEntries();
-    void showEntry(int index);
     void nextEntry();
     void copyCurrentEntry();
-    void setOperatorState(int stateIndex);
 
     QList<WisdomEntry> m_entries;
     int m_currentIndex = 0;

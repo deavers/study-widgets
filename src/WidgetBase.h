@@ -10,6 +10,7 @@
 #include <QGuiApplication>
 #include <QLayout>
 #include <QLinearGradient>
+#include <QMargins>
 #include <QMenu>
 #include <QMouseEvent>
 #include <QMoveEvent>
@@ -127,13 +128,15 @@ public:
         m_scaleFactor = qBound(0.65, factor, 1.75);
         m_customSize = QSize();
         saveWindowPrefs();
-        applyScaledFixedSize();
         setStyleSheet(Theme::styleSheet(m_scaleFactor));
+        applyScaledFixedSize();
     }
 
     double scaleFactor() const { return m_scaleFactor; }
 
     QSize baseWidgetSize() const { return m_baseSize; }
+
+    void setSavePrefsEnabled(bool enabled) { m_savePrefsEnabled = enabled; }
 
 protected:
     QVBoxLayout* bodyLayout() const { return m_bodyLayout; }
@@ -169,6 +172,7 @@ protected:
         setChromeTitle(m_chromePath, m_chromeTitle);
         applyGlass();
         onThemeChanged();
+        applyScaledFixedSize();
         update();
     }
 
@@ -458,10 +462,13 @@ protected:
     void mouseMoveEvent(QMouseEvent* event) override
     {
         if (!m_locked) {
-            if (m_isResizing && (event->buttons() & Qt::LeftButton)) {
+            if (m_isResizing && (event->buttons() & Qt::LeftButton))
+            {
                 const QPoint delta = event->globalPosition().toPoint() - m_resizeStartGlobal;
-                const int newW = qBound(220, m_resizeStartSize.width() + delta.x(), 1600);
-                const int newH = qBound(130, m_resizeStartSize.height() + delta.y(), 1200);
+                const int minW = qMax(220, effectiveMinimumSizeForWidth(-1).width());
+                const int newW = qBound(minW, m_resizeStartSize.width() + delta.x(), 1600);
+                const int minH = qMax(130, effectiveMinimumSizeForWidth(newW).height());
+                const int newH = qBound(minH, m_resizeStartSize.height() + delta.y(), 1200);
                 m_customSize = QSize(newW, newH);
                 setFixedSize(m_customSize);
                 event->accept();
@@ -501,7 +508,8 @@ protected:
     void moveEvent(QMoveEvent* event) override
     {
         QWidget::moveEvent(event);
-        if (m_savePosTimer) {
+        if (m_savePosTimer && m_savePrefsEnabled)
+        {
             m_savePosTimer->start();
         }
     }
@@ -512,19 +520,64 @@ protected:
         event->accept();
     }
 
-private:
-    bool isInResizeCorner(const QPoint& pt) const
+    QSize effectiveMinimumSizeForWidth(int targetWidth = -1) const
     {
-        return pt.x() >= width() - 16 && pt.y() >= height() - 16;
+        ensurePolished();
+        if (m_body)
+        {
+            m_body->ensurePolished();
+        }
+
+        const QSize baseMin = minimumSizeHint();
+        const int targetW = qMax(baseMin.width(), targetWidth > 0 ? targetWidth : baseMin.width());
+        int minH = baseMin.height();
+
+        if (!m_compact)
+        {
+            if (m_rootLayout && m_rootLayout->hasHeightForWidth())
+            {
+                const int rootH = m_rootLayout->totalMinimumHeightForWidth(targetW);
+                if (rootH > 0)
+                {
+                    minH = qMax(minH, rootH);
+                }
+            }
+            if (m_bodyLayout)
+            {
+                const QMargins rootM = m_rootLayout ? m_rootLayout->contentsMargins() : QMargins();
+                const int bodyW = qMax(100, targetW - rootM.left() - rootM.right());
+                if (m_bodyLayout->hasHeightForWidth())
+                {
+                    const int bodyH = m_bodyLayout->totalMinimumHeightForWidth(bodyW);
+                    if (bodyH > 0)
+                    {
+                        minH = qMax(minH, bodyH + rootM.top() + rootM.bottom());
+                    }
+                }
+            }
+        }
+
+        return QSize(baseMin.width(), minH);
     }
 
     void applyScaledFixedSize()
     {
-        if (layout()) {
+        if (layout())
+        {
             layout()->setSizeConstraint(QLayout::SetNoConstraint);
         }
+        ensurePolished();
+        for (QLayout* childLay : findChildren<QLayout*>())
+        {
+            childLay->invalidate();
+        }
+        if (layout())
+        {
+            layout()->invalidate();
+        }
 
-        if (m_compact) {
+        if (m_compact)
+        {
             const int w = static_cast<int>(std::round(m_baseSize.width() * m_scaleFactor));
             const int bodyH = m_compactWidget ? m_compactBodyHeight : 20;
             const int h = static_cast<int>(std::round((24 + bodyH) * qMax(1.0, m_scaleFactor)));
@@ -532,17 +585,31 @@ private:
             return;
         }
 
-        if (m_customSize.isValid() && m_customSize.width() >= 200 && m_customSize.height() >= 120) {
-            const QSize safeSize = m_customSize.expandedTo(minimumSizeHint());
-            setFixedSize(safeSize);
+        QSize desired;
+        if (m_customSize.isValid() && m_customSize.width() >= 200 && m_customSize.height() >= 120)
+        {
+            desired = m_customSize;
+        }
+        else if (m_baseSize.isValid() && m_baseSize.width() > 0 && m_baseSize.height() > 0)
+        {
+            desired = QSize(
+                static_cast<int>(std::round(m_baseSize.width() * m_scaleFactor)),
+                static_cast<int>(std::round(m_baseSize.height() * m_scaleFactor))
+            );
+        }
+        else
+        {
             return;
         }
-        if (!m_baseSize.isValid() || m_baseSize.width() <= 0 || m_baseSize.height() <= 0) {
-            return;
-        }
-        const QSize target(static_cast<int>(std::round(m_baseSize.width() * m_scaleFactor)),
-                           static_cast<int>(std::round(m_baseSize.height() * m_scaleFactor)));
-        setFixedSize(target.expandedTo(minimumSizeHint()));
+
+        const QSize safeMin = effectiveMinimumSizeForWidth(desired.width());
+        setFixedSize(desired.expandedTo(safeMin));
+    }
+
+private:
+    bool isInResizeCorner(const QPoint& pt) const
+    {
+        return pt.x() >= width() - 16 && pt.y() >= height() - 16;
     }
 
     void applyWindowMode()
@@ -576,6 +643,10 @@ private:
 
     void saveWindowPrefs() const
     {
+        if (!m_savePrefsEnabled)
+        {
+            return;
+        }
         QSettings settings;
         const QString key = "widgets/" + m_widgetId + "/";
         settings.setValue(key + "alwaysOnTop", m_alwaysOnTop);
@@ -587,6 +658,10 @@ private:
 
     void savePosition() const
     {
+        if (!m_savePrefsEnabled)
+        {
+            return;
+        }
         QSettings settings;
         settings.setValue("widgets/" + m_widgetId + "/position", pos());
     }
@@ -636,6 +711,7 @@ private:
     bool m_locked = false;
     bool m_compact = false;
     bool m_glassActive = false;
+    bool m_savePrefsEnabled = true;
     double m_density = 0.65;
     double m_scaleFactor = 1.0;
 
