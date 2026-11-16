@@ -31,7 +31,7 @@ Current local data includes:
 The default database location is:
 
 ```text
-%APPDATA%\deavers\StudyWidgets\studywidgets.sqlite
+%APPDATA%\LocalFirstApps\StudyWidgets\studywidgets.sqlite
 ```
 
 The database must never be committed to Git.

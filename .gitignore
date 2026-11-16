@@ -40,3 +40,24 @@ secrets/
 *.pem
 *.p12
 *.pfx
+
+# Local self-test output and tool backups
+selftest.log
+*.bak
+*.orig
+*.rej
+
+# Private local configuration (the *.example.json files stay tracked)
+categories.local.json
+seed.local.json
+*.local.json
+deave_bridge_state.json
+
+# Old pre-redesign copies (git history is the backup)
+docs/_backup_before_calm_theme/
+
+# Personal planning notes: contain local paths and a personal study plan
+DEAVE_WIDGETS_MASTER_PLAN.md
+
+# Local AI tool settings
+.claude/settings.local.json

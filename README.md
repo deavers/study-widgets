@@ -179,7 +179,7 @@ Current responsibilities:
 The database is currently stored in the Windows application-data directory:
 
 ```text
-%APPDATA%\deavers\StudyWidgets\studywidgets.sqlite
+%APPDATA%\LocalFirstApps\StudyWidgets\studywidgets.sqlite
 ```
 
 No study data is sent to a cloud service.
@@ -191,7 +191,7 @@ Personal subjects are not required in source code or public GitHub history.
 StudyWidgets loads private categories from:
 
 ```text
-%APPDATA%\deavers\StudyWidgets\config\categories.local.json
+%APPDATA%\LocalFirstApps\StudyWidgets\config\categories.local.jsons
 ```
 
 The local configuration file is not committed to Git.
