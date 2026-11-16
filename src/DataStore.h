@@ -77,11 +77,33 @@ struct CalendarEvent {
     bool completed = false;
 };
 
+struct CachedNote
+{
+    qint64 id = -1;
+    QString source;
+    QString path;
+    QString title;
+    QString content;
+    QString contentSha256;
+    qint64 size = 0;
+    QDateTime cachedAt;
+};
+
+struct DayRuleItem
+{
+    qint64 id = -1;
+    QString title;
+    bool completed = false;
+    int sortOrder = 0;
+    QDateTime createdAt;
+};
+
 class DataStore {
 public:
     static DataStore& instance();
 
     bool open();
+    void close();
     bool isOpen() const;
 
     QString databasePath() const;
@@ -152,6 +174,35 @@ public:
     // Export JSON snapshot for deave OS (FastAPI / React dashboard integration)
     bool exportDeaveBridgeSnapshot();
 
+    // Cached Notes (Stage 1B - SQLite v6)
+    bool saveCachedNote(
+        const QString& source,
+        const QString& path,
+        const QString& title,
+        const QString& content,
+        const QString& contentSha256 = QString(),
+        qint64 size = -1
+    );
+    bool getCachedNote(const QString& source, const QString& path, CachedNote* outNote = nullptr);
+    bool clearCachedNotes();
+    int cachedNotesCount();
+    int schemaVersion() const;
+    void setMaxCachedNotesCountForTesting(int count);
+    int maxCachedNotesCount() const;
+
+    // Notes Draft (Stage 3 - SQLite v7)
+    bool saveNotesDraft(const QString& text, const QString& target = QStringLiteral("inbox"));
+    bool getNotesDraft(QString* outText, QString* outTarget = nullptr);
+    bool clearNotesDraft();
+
+    // Day Rules Checklist (Stage 3 - SQLite v7, Zero .md sync)
+    QList<DayRuleItem> dayRules();
+    bool addDayRule(const QString& title, int sortOrder = 0);
+    bool toggleDayRule(qint64 id, bool completed);
+    bool removeDayRule(qint64 id);
+    bool resetDayRules();
+    void seedDefaultDayRulesIfEmpty();
+
     // Semester Schedule, Specialty Curriculum & Bidirectional Auto-Sync (Calendar <-> Goals <-> Roadmaps)
     void ensureSemesterScheduleAndAutoTasks(bool forceReseed = false);
     void syncDailyTasksWithCalendarAndRoadmaps(const QDate& targetDate = QDate::currentDate());
@@ -181,6 +232,8 @@ private:
     bool migrateSchemaV2ToV3();
     bool migrateSchemaV3ToV4();
     bool migrateSchemaV4ToV5();
+    bool migrateSchemaV5ToV6();
+    bool migrateSchemaV6ToV7();
     void seedDefaultGoalsAndReviewsIfEmpty();
 
     bool openDatabase();
@@ -188,6 +241,7 @@ private:
 
     bool m_isOpen = false;
     bool m_syncing = false;
+    int m_maxCachedNotesCount = 100;
     QDate m_lastSyncedDate;
     QList<ListenerEntry> m_listeners;
 

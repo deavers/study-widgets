@@ -2,6 +2,7 @@
 
 #include "CategoryConfigLoader.h"
 
+#include <QCryptographicHash>
 #include <QDebug>
 #include <QDir>
 #include <QFile>
@@ -21,7 +22,7 @@
 
 namespace {
 
-constexpr int CurrentSchemaVersion = 5;
+constexpr int CurrentSchemaVersion = 7;
 
 const QString ConnectionName = "StudyWidgetsSqlConnection";
 
@@ -112,6 +113,21 @@ bool DataStore::open() {
 
 bool DataStore::isOpen() const {
     return m_isOpen;
+}
+
+void DataStore::close()
+{
+    if (QSqlDatabase::contains(ConnectionName))
+    {
+        QSqlDatabase database = QSqlDatabase::database(ConnectionName);
+        if (database.isOpen())
+        {
+            database.close();
+        }
+    }
+    m_isOpen = false;
+    m_databasePath.clear();
+    m_appDataDir.clear();
 }
 
 QString DataStore::databasePath() const {
@@ -222,6 +238,17 @@ bool DataStore::ensureSchema() {
         if (databaseSchemaVersion == 4) {
             if (!migrateSchemaV4ToV5()) return false;
             databaseSchemaVersion = 5;
+            continue;
+        }
+        if (databaseSchemaVersion == 5) {
+            if (!migrateSchemaV5ToV6()) return false;
+            databaseSchemaVersion = 6;
+            continue;
+        }
+        if (databaseSchemaVersion == 6)
+        {
+            if (!migrateSchemaV6ToV7()) return false;
+            databaseSchemaVersion = 7;
             continue;
         }
         setError("No migration path is available for the current database schema.");
@@ -496,6 +523,124 @@ bool DataStore::migrateSchemaV4ToV5() {
     }
 
     qInfo().noquote() << "StudyWidgets database migrated to schema version 5.";
+    return true;
+}
+
+bool DataStore::migrateSchemaV5ToV6()
+{
+    QDir(m_appDataDir).mkpath("backups");
+    const QString backupPath = QDir(m_appDataDir).filePath("backups/studywidgets-before-v6.sqlite");
+    if (!QFile::exists(backupPath))
+    {
+        QFile::copy(m_databasePath, backupPath);
+    }
+
+    QSqlDatabase database = QSqlDatabase::database(ConnectionName);
+    if (!database.transaction())
+    {
+        setError("Could not start V5->V6 migration transaction: " + database.lastError().text());
+        return false;
+    }
+
+    QSqlQuery query(database);
+    const QString createCachedNotesSql = R"(
+        CREATE TABLE IF NOT EXISTS cached_notes (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            source TEXT NOT NULL,
+            path TEXT NOT NULL,
+            title TEXT NOT NULL DEFAULT '',
+            content TEXT NOT NULL,
+            content_sha256 TEXT NOT NULL,
+            size INTEGER NOT NULL,
+            cached_at TEXT NOT NULL,
+            UNIQUE(source, path)
+        )
+    )";
+    if (!query.exec(createCachedNotesSql))
+    {
+        database.rollback();
+        setError("Could not create cached_notes table: " + query.lastError().text());
+        return false;
+    }
+
+    query.exec("CREATE INDEX IF NOT EXISTS idx_cached_notes_source_path ON cached_notes(source, path)");
+    query.exec("CREATE INDEX IF NOT EXISTS idx_cached_notes_cached_at ON cached_notes(cached_at)");
+
+    query.prepare("INSERT OR REPLACE INTO schema_version(version, applied_at) VALUES(?, ?)");
+    query.addBindValue(6);
+    query.addBindValue(toDatabaseDateTime(QDateTime::currentDateTime()));
+    if (!query.exec() || !database.commit())
+    {
+        database.rollback();
+        setError("Could not commit V6 migration: " + database.lastError().text());
+        return false;
+    }
+
+    qInfo().noquote() << "StudyWidgets database migrated to schema version 6.";
+    return true;
+}
+
+bool DataStore::migrateSchemaV6ToV7()
+{
+    QDir(m_appDataDir).mkpath("backups");
+    const QString backupPath = QDir(m_appDataDir).filePath("backups/studywidgets-before-v7.sqlite");
+    if (!QFile::exists(backupPath))
+    {
+        QFile::copy(m_databasePath, backupPath);
+    }
+
+    QSqlDatabase database = QSqlDatabase::database(ConnectionName);
+    if (!database.transaction())
+    {
+        setError("Could not start V6->V7 migration transaction: " + database.lastError().text());
+        return false;
+    }
+
+    QSqlQuery query(database);
+    const QString createNotesDraftSql = R"(
+        CREATE TABLE IF NOT EXISTS notes_draft (
+            id INTEGER PRIMARY KEY CHECK (id = 1),
+            target TEXT NOT NULL DEFAULT 'inbox',
+            text TEXT NOT NULL DEFAULT '',
+            updated_at TEXT NOT NULL
+        )
+    )";
+    if (!query.exec(createNotesDraftSql))
+    {
+        database.rollback();
+        setError("Could not create notes_draft table: " + query.lastError().text());
+        return false;
+    }
+
+    const QString createDayRulesSql = R"(
+        CREATE TABLE IF NOT EXISTS day_rules (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            title TEXT NOT NULL,
+            completed INTEGER NOT NULL DEFAULT 0,
+            sort_order INTEGER NOT NULL DEFAULT 0,
+            created_at TEXT NOT NULL
+        )
+    )";
+    if (!query.exec(createDayRulesSql))
+    {
+        database.rollback();
+        setError("Could not create day_rules table: " + query.lastError().text());
+        return false;
+    }
+
+    query.exec("CREATE INDEX IF NOT EXISTS idx_day_rules_order ON day_rules(sort_order, id)");
+
+    query.prepare("INSERT OR REPLACE INTO schema_version(version, applied_at) VALUES(?, ?)");
+    query.addBindValue(7);
+    query.addBindValue(toDatabaseDateTime(QDateTime::currentDateTime()));
+    if (!query.exec() || !database.commit())
+    {
+        database.rollback();
+        setError("Could not commit V7 migration: " + database.lastError().text());
+        return false;
+    }
+
+    qInfo().noquote() << "StudyWidgets database migrated to schema version 7.";
     return true;
 }
 
@@ -2233,4 +2378,324 @@ void DataStore::notifyListeners() {
 void DataStore::setError(const QString& error) {
     m_lastError = error;
     qWarning().noquote() << "StudyWidgets DataStore error:" << error;
+}
+
+bool DataStore::saveCachedNote(
+    const QString& source,
+    const QString& path,
+    const QString& title,
+    const QString& content,
+    const QString& contentSha256,
+    qint64 size)
+{
+    static constexpr qint64 MaxCachedNoteSizeBytes = 512 * 1024; // 512 KB
+
+    const QByteArray utf8Bytes = content.toUtf8();
+    const qint64 actualSize = (size >= 0) ? size : static_cast<qint64>(utf8Bytes.size());
+
+    // Strict 512 KB limit enforcement
+    if (actualSize > MaxCachedNoteSizeBytes || utf8Bytes.size() > MaxCachedNoteSizeBytes)
+    {
+        qWarning().noquote() << QStringLiteral("Cannot cache note exceeding 512 KB: size=%1 bytes").arg(actualSize);
+        return false;
+    }
+
+    QString sha256 = contentSha256;
+    if (sha256.isEmpty())
+    {
+        sha256 = QString::fromLatin1(QCryptographicHash::hash(utf8Bytes, QCryptographicHash::Sha256).toHex());
+    }
+
+    QSqlDatabase database = QSqlDatabase::database(ConnectionName);
+    QSqlQuery query(database);
+
+    // Upsert into cached_notes
+    query.prepare(
+        "INSERT INTO cached_notes(source, path, title, content, content_sha256, size, cached_at) "
+        "VALUES(?, ?, ?, ?, ?, ?, ?) "
+        "ON CONFLICT(source, path) DO UPDATE SET "
+        "  title = excluded.title, "
+        "  content = excluded.content, "
+        "  content_sha256 = excluded.content_sha256, "
+        "  size = excluded.size, "
+        "  cached_at = excluded.cached_at"
+    );
+    query.addBindValue(source);
+    query.addBindValue(path);
+    query.addBindValue(title);
+    query.addBindValue(content);
+    query.addBindValue(sha256);
+    query.addBindValue(actualSize);
+    query.addBindValue(toDatabaseDateTime(QDateTime::currentDateTime()));
+
+    if (!query.exec())
+    {
+        setError("Could not save cached note: " + query.lastError().text());
+        return false;
+    }
+
+    // LRU eviction ordered by cached_at
+    const int maxCount = m_maxCachedNotesCount > 0 ? m_maxCachedNotesCount : 100;
+    QSqlQuery countQuery(database);
+    if (countQuery.exec("SELECT COUNT(*) FROM cached_notes") && countQuery.next())
+    {
+        const int count = countQuery.value(0).toInt();
+        if (count > maxCount)
+        {
+            const int excess = count - maxCount;
+            QSqlQuery evictQuery(database);
+            evictQuery.prepare(
+                "DELETE FROM cached_notes WHERE id IN ("
+                "  SELECT id FROM cached_notes ORDER BY cached_at ASC, id ASC LIMIT ?"
+                ")"
+            );
+            evictQuery.addBindValue(excess);
+            evictQuery.exec();
+        }
+    }
+
+    return true;
+}
+
+bool DataStore::getCachedNote(const QString& source, const QString& path, CachedNote* outNote)
+{
+    QSqlDatabase database = QSqlDatabase::database(ConnectionName);
+    QSqlQuery query(database);
+    query.prepare(
+        "SELECT id, source, path, title, content, content_sha256, size, cached_at "
+        "FROM cached_notes WHERE source = ? AND path = ?"
+    );
+    query.addBindValue(source);
+    query.addBindValue(path);
+
+    if (!query.exec() || !query.next())
+    {
+        return false;
+    }
+
+    if (outNote)
+    {
+        outNote->id = query.value(0).toLongLong();
+        outNote->source = query.value(1).toString();
+        outNote->path = query.value(2).toString();
+        outNote->title = query.value(3).toString();
+        outNote->content = query.value(4).toString();
+        outNote->contentSha256 = query.value(5).toString();
+        outNote->size = query.value(6).toLongLong();
+        outNote->cachedAt = fromDatabaseDateTime(query.value(7).toString());
+    }
+
+    // Refresh LRU recency
+    const qint64 noteId = query.value(0).toLongLong();
+    QSqlQuery touchQuery(database);
+    touchQuery.prepare("UPDATE cached_notes SET cached_at = ? WHERE id = ?");
+    touchQuery.addBindValue(toDatabaseDateTime(QDateTime::currentDateTime()));
+    touchQuery.addBindValue(noteId);
+    touchQuery.exec();
+
+    return true;
+}
+
+bool DataStore::clearCachedNotes()
+{
+    QSqlDatabase database = QSqlDatabase::database(ConnectionName);
+    QSqlQuery query(database);
+    if (!query.exec("DELETE FROM cached_notes"))
+    {
+        setError("Could not clear cached_notes: " + query.lastError().text());
+        return false;
+    }
+    return true;
+}
+
+int DataStore::cachedNotesCount()
+{
+    QSqlDatabase database = QSqlDatabase::database(ConnectionName);
+    QSqlQuery query(database);
+    if (query.exec("SELECT COUNT(*) FROM cached_notes") && query.next())
+    {
+        return query.value(0).toInt();
+    }
+    return 0;
+}
+
+int DataStore::schemaVersion() const
+{
+    QSqlDatabase database = QSqlDatabase::database(ConnectionName);
+    QSqlQuery query(database);
+    if (query.exec("SELECT version FROM schema_version ORDER BY version DESC LIMIT 1") && query.next())
+    {
+        return query.value(0).toInt();
+    }
+    return 0;
+}
+
+void DataStore::setMaxCachedNotesCountForTesting(int count)
+{
+    m_maxCachedNotesCount = count;
+}
+
+int DataStore::maxCachedNotesCount() const
+{
+    return m_maxCachedNotesCount;
+}
+
+bool DataStore::saveNotesDraft(const QString& text, const QString& target)
+{
+    QSqlDatabase database = QSqlDatabase::database(ConnectionName);
+    QSqlQuery query(database);
+    query.prepare(R"(
+        INSERT INTO notes_draft (id, target, text, updated_at)
+        VALUES (1, :target, :text, :updated_at)
+        ON CONFLICT(id) DO UPDATE SET
+            target = excluded.target,
+            text = excluded.text,
+            updated_at = excluded.updated_at
+    )");
+    query.bindValue(QStringLiteral(":target"), target.trimmed().isEmpty() ? QStringLiteral("inbox") : target.trimmed());
+    query.bindValue(QStringLiteral(":text"), text);
+    query.bindValue(QStringLiteral(":updated_at"), toDatabaseDateTime(QDateTime::currentDateTime()));
+    if (!query.exec())
+    {
+        setError("Could not save notes draft: " + query.lastError().text());
+        return false;
+    }
+    return true;
+}
+
+bool DataStore::getNotesDraft(QString* outText, QString* outTarget)
+{
+    QSqlDatabase database = QSqlDatabase::database(ConnectionName);
+    QSqlQuery query(database);
+    if (!query.exec("SELECT target, text FROM notes_draft WHERE id = 1") || !query.next())
+    {
+        return false;
+    }
+    if (outTarget)
+    {
+        *outTarget = query.value(0).toString();
+    }
+    if (outText)
+    {
+        *outText = query.value(1).toString();
+    }
+    return true;
+}
+
+bool DataStore::clearNotesDraft()
+{
+    QSqlDatabase database = QSqlDatabase::database(ConnectionName);
+    QSqlQuery query(database);
+    if (!query.exec("DELETE FROM notes_draft WHERE id = 1"))
+    {
+        setError("Could not clear notes draft: " + query.lastError().text());
+        return false;
+    }
+    return true;
+}
+
+QList<DayRuleItem> DataStore::dayRules()
+{
+    QList<DayRuleItem> list;
+    QSqlDatabase database = QSqlDatabase::database(ConnectionName);
+    QSqlQuery query(database);
+    if (query.exec("SELECT id, title, completed, sort_order, created_at FROM day_rules ORDER BY sort_order ASC, id ASC"))
+    {
+        while (query.next())
+        {
+            DayRuleItem item;
+            item.id = query.value(0).toLongLong();
+            item.title = query.value(1).toString();
+            item.completed = (query.value(2).toInt() != 0);
+            item.sortOrder = query.value(3).toInt();
+            item.createdAt = fromDatabaseDateTime(query.value(4).toString());
+            list.append(item);
+        }
+    }
+    return list;
+}
+
+bool DataStore::addDayRule(const QString& title, int sortOrder)
+{
+    const QString clean = title.trimmed();
+    if (clean.isEmpty())
+    {
+        return false;
+    }
+    QSqlDatabase database = QSqlDatabase::database(ConnectionName);
+    QSqlQuery query(database);
+    query.prepare("INSERT INTO day_rules (title, completed, sort_order, created_at) VALUES (?, 0, ?, ?)");
+    query.addBindValue(clean);
+    query.addBindValue(sortOrder);
+    query.addBindValue(toDatabaseDateTime(QDateTime::currentDateTime()));
+    if (!query.exec())
+    {
+        setError("Could not add day rule: " + query.lastError().text());
+        return false;
+    }
+    notifyListeners();
+    return true;
+}
+
+bool DataStore::toggleDayRule(qint64 id, bool completed)
+{
+    QSqlDatabase database = QSqlDatabase::database(ConnectionName);
+    QSqlQuery query(database);
+    query.prepare("UPDATE day_rules SET completed = ? WHERE id = ?");
+    query.addBindValue(completed ? 1 : 0);
+    query.addBindValue(id);
+    if (!query.exec())
+    {
+        setError("Could not toggle day rule: " + query.lastError().text());
+        return false;
+    }
+    notifyListeners();
+    return true;
+}
+
+bool DataStore::removeDayRule(qint64 id)
+{
+    QSqlDatabase database = QSqlDatabase::database(ConnectionName);
+    QSqlQuery query(database);
+    query.prepare("DELETE FROM day_rules WHERE id = ?");
+    query.addBindValue(id);
+    if (!query.exec())
+    {
+        setError("Could not remove day rule: " + query.lastError().text());
+        return false;
+    }
+    notifyListeners();
+    return true;
+}
+
+bool DataStore::resetDayRules()
+{
+    QSqlDatabase database = QSqlDatabase::database(ConnectionName);
+    QSqlQuery query(database);
+    if (!query.exec("UPDATE day_rules SET completed = 0"))
+    {
+        setError("Could not reset day rules: " + query.lastError().text());
+        return false;
+    }
+    notifyListeners();
+    return true;
+}
+
+void DataStore::seedDefaultDayRulesIfEmpty()
+{
+    QSqlDatabase database = QSqlDatabase::database(ConnectionName);
+    QSqlQuery query(database);
+    if (query.exec("SELECT COUNT(*) FROM day_rules") && query.next() && query.value(0).toInt() == 0)
+    {
+        const QStringList defaults = {
+            QString::fromUtf8("Фокус-блок: ключевая задача дня без переключений"),
+            QString::fromUtf8("Консолидация конспектов и разбор сложных мест"),
+            QString::fromUtf8("Сверка чек-листов и целей спринта"),
+            QString::fromUtf8("Водный баланс и физическая разминка")
+        };
+        for (int i = 0; i < defaults.size(); ++i)
+        {
+            addDayRule(defaults[i], i);
+        }
+    }
 }
