@@ -126,6 +126,8 @@ void DataStore::close()
         }
     }
     m_isOpen = false;
+    m_databasePath.clear();
+    m_appDataDir.clear();
 }
 
 QString DataStore::databasePath() const {

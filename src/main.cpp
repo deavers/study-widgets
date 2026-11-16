@@ -1072,6 +1072,32 @@ int main(int argc, char* argv[])
 
     app.setQuitOnLastWindowClosed(false);
 
+    QTemporaryDir isolatedDir;
+    QString isolatedAppData;
+    struct IsolatedScopeGuard
+    {
+        QString& dirPath;
+        ~IsolatedScopeGuard()
+        {
+            if (!dirPath.isEmpty())
+            {
+                DataStore::instance().close();
+                QDir(dirPath).removeRecursively();
+            }
+        }
+    } isolatedGuard{isolatedAppData};
+
+    if (app.arguments().contains(QStringLiteral("--isolated")) && isolatedDir.isValid())
+    {
+        QApplication::setOrganizationName(QStringLiteral("StudyWidgetsIsolatedTest"));
+        QStandardPaths::setTestModeEnabled(true);
+        QSettings::setDefaultFormat(QSettings::IniFormat);
+        QSettings::setPath(QSettings::IniFormat, QSettings::UserScope, isolatedDir.path());
+        DataStore::instance().close();
+        isolatedAppData = QStandardPaths::writableLocation(QStandardPaths::AppDataLocation);
+        QDir(isolatedAppData).removeRecursively();
+    }
+
     if (app.arguments().contains("--self-test"))
     {
 #ifdef Q_OS_WIN
@@ -1079,23 +1105,7 @@ int main(int argc, char* argv[])
         freopen("CONOUT$", "w", stdout);
         freopen("CONOUT$", "w", stderr);
 #endif
-        QTemporaryDir isolatedDir;
-        QString isolatedAppData;
-        if (app.arguments().contains(QStringLiteral("--isolated")) && isolatedDir.isValid())
-        {
-            QApplication::setOrganizationName(QStringLiteral("StudyWidgetsIsolatedTest"));
-            QStandardPaths::setTestModeEnabled(true);
-            QSettings::setDefaultFormat(QSettings::IniFormat);
-            QSettings::setPath(QSettings::IniFormat, QSettings::UserScope, isolatedDir.path());
-            isolatedAppData = QStandardPaths::writableLocation(QStandardPaths::AppDataLocation);
-            QDir(isolatedAppData).removeRecursively();
-        }
-        const int rc = runSelfTest();
-        if (!isolatedAppData.isEmpty())
-        {
-            QDir(isolatedAppData).removeRecursively();
-        }
-        return rc;
+        return runSelfTest();
     }
 
     if (app.arguments().contains(QStringLiteral("--clear-notes-cache")))
